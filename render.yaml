@@ -1,0 +1,29 @@
+services:
+  - type: web
+    name: health-funnel-bot
+    runtime: docker
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: TELEGRAM_BOT_TOKEN
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: CONTENT_CHANNEL_ID
+        sync: false
+      - key: ADMIN_CHAT_ID
+        sync: false
+      - key: TELEGRAM_WEBHOOK_SECRET
+        sync: false
+      - key: FUNNEL_CTA_AT
+        sync: false
+      - key: PURCHASE_URL
+        sync: false
+      - key: PAYMENTS_ENABLED
+        sync: false
+      - key: STARS_PRICE
+        sync: false
+      - key: SHEETS_SCRIPT_URL
+        sync: false
+      - key: SHEETS_SECRET
+        sync: false
