@@ -123,6 +123,7 @@ class TelegramBot:
                 MessageHandler(filters.TEXT & ~filters.COMMAND, self._handle_message)
             )
 
+            self._app.add_error_handler(self._on_handler_error)
             self._warn_about_config_gaps()
 
             await self._app.initialize()
@@ -149,6 +150,19 @@ class TelegramBot:
             # сиротой и будет ходить в Sheets каждые 10с до конца жизни процесса.
             await store.stop()
             self._app = None
+
+    async def _on_handler_error(self, update: object, context) -> None:
+        """Показать, что именно упало в обработчике.
+
+        Без этого библиотека пишет только «No error handlers are registered», а
+        человек видит полную тишину в ответ на нажатие — как было с кнопкой
+        оффера, где падал вызов счёта.
+        """
+        error = getattr(context, "error", None)
+        where = ""
+        if isinstance(update, Update) and update.effective_chat:
+            where = f", чат {update.effective_chat.id}"
+        log_agent_action("Telegram", f"Обработчик упал: {error!r}{where}", level="ERROR")
 
     def _warn_about_config_gaps(self) -> None:
         """Молчаливая недонастройка дороже шумного лога: без CONTENT_CHANNEL_ID
@@ -275,6 +289,10 @@ class TelegramBot:
                     "карта не нужна."
                 ),
                 payload="premium_access",
+                # Для Telegram Stars провайдер не нужен, но аргумент обязателен:
+                # без него библиотека роняет обработчик, и клик по кнопке
+                # оставался вообще без ответа.
+                provider_token="",
                 currency="XTR",
                 prices=[LabeledPrice(label=_OFFER.product_name, amount=_STARS_PRICE)],
             )
