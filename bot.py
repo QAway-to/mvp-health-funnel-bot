@@ -289,8 +289,12 @@ class TelegramBot:
         await self._send_invoice(update.message)
 
     async def _handle_testpay(self, update: Update, context) -> None:
-        """MVP: открывает доступ без реальной оплаты для тестирования."""
-        if not update.message:
+        """Выдать доступ без оплаты — только владельцу.
+
+        Команда открывает платный доступ бесплатно. Без проверки её мог бы
+        набрать любой, кто её увидит или угадает, и продавать стало бы нечего.
+        """
+        if not update.message or await self._deny_non_admin(update, "/testpay"):
             return
         chat_id = str(update.effective_chat.id)
         await self._grant_premium(chat_id, "testpay")
