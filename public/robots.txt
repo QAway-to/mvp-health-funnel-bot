@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://beg.example.com/sitemap-index.xml

@@ -4,13 +4,16 @@ services:
     runtime: static
     buildCommand: npm ci && npm run build
     staticPublishPath: ./dist
-    pullRequestPreviewsEnabled: true
+
+    previews:
+      generation: automatic
 
     envVars:
       # Базовый URL для canonical, OG-тегов и sitemap.
       # После привязки домена заменить на боевой адрес.
       - key: PUBLIC_SITE_URL
         value: https://mvp-running-landings.onrender.com
+      # Нужен только на этапе сборки: отдаётся статика, рантайма нет.
       - key: NODE_VERSION
         value: 22.12.0
 
@@ -32,12 +35,29 @@ services:
       - path: /*
         name: Referrer-Policy
         value: strict-origin-when-cross-origin
+      # Страницы не должны открываться во фрейме на чужом домене.
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
 
     routes:
-      # Многостраничная статика: SPA-фолбэк не нужен, только чистые адреса.
+      # Сборка кладёт страницы папками (dist/bez-boli/index.html), поэтому
+      # канонический адрес — со слешем. Обращение без слеша уводим редиректом,
+      # чтобы не зависеть от того, как хостинг разбирает каталоги.
+      - type: redirect
+        source: /bez-boli
+        destination: /bez-boli/
+      - type: redirect
+        source: /sila
+        destination: /sila/
+
+      # Короткие ссылки для рекламных кампаний.
       - type: redirect
         source: /a
-        destination: /bez-boli
+        destination: /bez-boli/
       - type: redirect
         source: /b
-        destination: /sila
+        destination: /sila/
+
+    # SPA-rewrite (/* → /index.html) сознательно не добавлен:
+    # это многостраничная статика, такое правило сломало бы 404.

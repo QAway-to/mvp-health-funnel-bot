@@ -41,7 +41,7 @@ src/
 ├── components/           ← секции: Hero, Mirror, Reasons, Mechanism, Effects,
 │                            Program, Plan, AuthorSection, Pricing, Faq, FinalCta
 ├── layouts/Landing.astro ← <head>, мета, OG, шрифты
-├── pages/                ← index / bez-boli / sila
+├── pages/                ← index / bez-boli / sila / 404 / robots.txt
 ├── scripts/analytics.ts  ← события cta_click и scroll_depth
 └── styles/global.css     ← дизайн-токены и примитивы
 public/img/               ← шесть фотографий из хендоффа
@@ -71,17 +71,32 @@ public/img/               ← шесть фотографий из хендоф�
 
 ## Деплой на Render
 
-В корне лежит `render.yaml` (Blueprint) — Static Site:
+В корне лежит `render.yaml` (Blueprint) — Static Site. Порядок: **New → Blueprint**, указать репозиторий, Render поднимет сервис сам.
 
-- Build Command: `npm ci && npm run build`
-- Publish Directory: `dist`
-- `NODE_VERSION` = 22.12.0
-- Кэш: `immutable` на `/_astro/*` и `/img/*`, `no-cache` на HTML — правки цен доезжают сразу
-- Редиректы `/a` → `/bez-boli`, `/b` → `/sila` для коротких ссылок в рекламе
+- Build Command: `npm ci && npm run build`, Publish Directory: `dist`
+- `NODE_VERSION` = 22.12.0 — нужен только на сборке, рантайма у статики нет
+- TLS, HTTP/2 и Brotli Render включает сам, настраивать нечего
 
-Порядок: **New → Blueprint**, указать репозиторий, Render поднимет сервис по `render.yaml`. После первого деплоя — привязать домен и заменить `PUBLIC_SITE_URL` на боевой адрес.
+### Адреса со слешем
 
-SPA-rewrite не нужен: это многостраничная статика, каждый маршрут — свой `index.html`.
+Сборка кладёт страницы папками (`dist/bez-boli/index.html`), поэтому канонический адрес — **со слешем**: `/bez-boli/`. Как хостинг обрабатывает адрес без слеша, Render в документации не описывает, а локальный статический сервер на `/bez-boli` отдаёт 404. Поэтому:
+
+- `trailingSlash: 'always'` в `astro.config.mjs` — canonical, OG и sitemap всегда со слешем;
+- в `render.yaml` редиректы `/bez-boli` → `/bez-boli/` и `/sila` → `/sila/`.
+
+Рекламу можно вести на любой из двух вариантов и на короткие `/a` и `/b`.
+
+### Кэш
+
+`immutable` на `/_astro/*` и `/img/*` (имена файлов хешированы), `no-cache` на HTML — правка цены доезжает сразу после деплоя, а не через сутки.
+
+### Домен
+
+После первого деплоя: Settings → Custom Domain, добавить домен, прописать CNAME у регистратора, дождаться выпуска сертификата. **Затем обязательно поменять `PUBLIC_SITE_URL`** на боевой адрес и передеплоить — иначе canonical, OG-теги и sitemap останутся с адресом `onrender.com`.
+
+### Чего в конфиге намеренно нет
+
+SPA-rewrite `/*` → `/index.html`. Это многостраничная статика, такое правило сломало бы 404: любой битый адрес отдавал бы главную со статусом 200. Вместо этого собирается `dist/404.html`.
 
 ## Отступления от прототипа
 
