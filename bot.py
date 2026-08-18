@@ -36,6 +36,41 @@ def _load_persona() -> str:
 
 _CHAT_SYSTEM_PROMPT = _load_persona()
 
+
+def _load_gift() -> str:
+    """Чек-лист-подарок из prompts/gift_checklist.txt.
+
+    Пустой файл — не авария: подарок просто не предлагается, разговор в боте от
+    этого не ломается. Комментарии выброшены так же, как в остальных промптах.
+    """
+    path = Path(__file__).parent / "prompts" / "gift_checklist.txt"
+    try:
+        raw = path.read_text(encoding="utf-8")
+    except OSError as e:
+        log_agent_action("Bot", f"Не прочитан prompts/gift_checklist.txt: {e}", level="WARNING")
+        return ""
+    lines = [line for line in raw.splitlines() if not line.lstrip().startswith("#")]
+    return "\n".join(lines).strip()
+
+
+_GIFT_TEXT = _load_gift()
+# Лимит одного сообщения Telegram — 4096 знаков. Режем на этапе загрузки, а не
+# при отправке: иначе подарок молча не уходил бы у части пользователей.
+_GIFT_LIMIT = 4096
+if len(_GIFT_TEXT) > _GIFT_LIMIT:
+    log_agent_action(
+        "Bot",
+        f"gift_checklist.txt длиннее {_GIFT_LIMIT} знаков — подарок обрезан",
+        level="WARNING",
+    )
+    _GIFT_TEXT = _GIFT_TEXT[:_GIFT_LIMIT]
+
+_GIFT_BUTTON = "🎁 Забрать чек-лист: 30 шагов"
+_GIFT_CALLBACK = "gift"
+# Deep link t.me/<bot>?start=gift — так подарок выдаётся сразу после перехода
+# из рекламы или поста, без лишнего клика.
+_GIFT_START_ARGS = ("gift", "checklist")
+
 _MAX_HISTORY = 20
 _MAX_CONVERSATIONS = 500   # сколько чатов держим в памяти на 512MB инстансе
 
@@ -103,6 +138,7 @@ class TelegramBot:
                 .build()
             )
             self._app.add_handler(CommandHandler("start", self._handle_start))
+            self._app.add_handler(CommandHandler("checklist", self._handle_checklist))
             self._app.add_handler(CommandHandler("status", self._handle_status))
             self._app.add_handler(CommandHandler("reindex", self._handle_reindex))
             self._app.add_handler(CommandHandler("migrate_legacy", self._handle_migrate_legacy))
@@ -273,6 +309,8 @@ class TelegramBot:
 
         if data == "offer":
             await self._handle_offer_click(query, chat_id)
+        elif data == _GIFT_CALLBACK:
+            await self._send_gift(query.message, chat_id)
 
     # --- Касса внутри бота: спит при PAYMENTS_ENABLED=false ------------------
     # Четыре метода ниже не зарегистрированы как хендлеры, пока флаг опущен.
@@ -412,10 +450,45 @@ class TelegramBot:
             "<b>Как начать бегать с нуля</b>\n"
             "<b>Бег для долголетия</b>"
         )
+        keyboard = None
+        if _GIFT_TEXT:
+            keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(_GIFT_BUTTON, callback_data=_GIFT_CALLBACK)
+            ]])
         try:
-            await update.message.reply_text(welcome, parse_mode="HTML", disable_web_page_preview=True)
+            await update.message.reply_text(
+                welcome,
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+                reply_markup=keyboard,
+            )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send welcome: {e}", level="ERROR")
+
+        # Пришёл по ссылке из рекламы или поста — отдаём подарок сразу, без клика
+        if source.lower() in _GIFT_START_ARGS:
+            await self._send_gift(update.message, chat_id)
+
+    async def _handle_checklist(self, update: Update, context) -> None:
+        if not update.message:
+            return
+        await self._send_gift(update.message, str(update.effective_chat.id))
+
+    async def _send_gift(self, message, chat_id: str) -> None:
+        """Отдать чек-лист-подарок и записать выдачу в аналитику."""
+        if not message:
+            return
+        if not _GIFT_TEXT:
+            log_agent_action("Bot", "Запрошен подарок, но gift_checklist.txt пуст", level="WARNING")
+            return
+        try:
+            await message.reply_text(
+                _GIFT_TEXT, parse_mode="HTML", disable_web_page_preview=True
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to send gift: {e}", level="ERROR")
+            return
+        await store.event(chat_id, "gift_sent")
 
     async def _handle_message(self, update: Update, context) -> None:
         """Free-form chat with LLM."""
