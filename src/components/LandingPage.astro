@@ -1,0 +1,47 @@
+---
+import AuthorSection from './AuthorSection.astro';
+import Effects from './Effects.astro';
+import Faq from './Faq.astro';
+import FinalCta from './FinalCta.astro';
+import Hero from './Hero.astro';
+import Mechanism from './Mechanism.astro';
+import Mirror from './Mirror.astro';
+import Plan from './Plan.astro';
+import Pricing from './Pricing.astro';
+import Program from './Program.astro';
+import Reasons from './Reasons.astro';
+import SiteFooter from './SiteFooter.astro';
+import SiteHeader from './SiteHeader.astro';
+import type { LandingContent } from '../content/types';
+
+interface Props {
+  content: LandingContent;
+}
+
+const { content } = Astro.props;
+
+/**
+ * Фон секций чередуется: первая после hero — тёмная (`alt`), дальше через одну.
+ * Лендинг Б добавляет секцию «эффекты», и порядок сдвигается сам собой.
+ */
+let toneIndex = 0;
+const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
+---
+
+<SiteHeader brand={content.brand} nav={content.nav} ctaLabel={content.headerCta} />
+
+<main>
+  <Hero hero={content.hero} />
+  <Mirror mirror={content.mirror} tone={nextTone()} />
+  <Reasons reasons={content.reasons} tone={nextTone()} />
+  <Mechanism mechanism={content.mechanism} tone={nextTone()} />
+  {content.effects && <Effects effects={content.effects} tone={nextTone()} />}
+  <Program program={content.program} tone={nextTone()} />
+  <Plan plan={content.plan} tone={nextTone()} />
+  <AuthorSection author={content.author} tone={nextTone()} />
+  <Pricing pricing={content.pricing} tone={nextTone()} />
+  <Faq faq={content.faq} tone={nextTone()} />
+  <FinalCta finalCta={content.finalCta} />
+</main>
+
+<SiteFooter />

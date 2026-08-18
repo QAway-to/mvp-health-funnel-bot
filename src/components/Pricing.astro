@@ -1,0 +1,200 @@
+---
+import type { Pricing } from '../content/types';
+
+interface Props {
+  pricing: Pricing;
+  tone: 'base' | 'alt';
+}
+
+const { pricing, tone } = Astro.props;
+---
+
+<section id="price" class={`section section--${tone}`} data-section="price">
+  <div class="container stack">
+    <p class="kicker">{pricing.kicker}</p>
+    <h2 class="h2 pricing__title">{pricing.title}</h2>
+
+    <div class="pricing__grid">
+      <article class="plan-card plan-card--base">
+        <p class="plan-card__label">{pricing.base.label}</p>
+        <p class="plan-card__price">{pricing.base.price}</p>
+        <p class="plan-card__text">{pricing.base.text}</p>
+
+        <ul class="plan-card__features">
+          {
+            pricing.base.features.map((feature) => (
+              <li class="plan-card__feature">
+                <span class="plan-card__marker" aria-hidden="true" />
+                <span>{feature}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <a class="btn btn--ghost btn--md plan-card__cta" href={pricing.base.href} data-cta="price_base">
+          {pricing.base.ctaLabel}
+        </a>
+      </article>
+
+      <article class="plan-card plan-card--premium">
+        <p class="plan-card__badge">{pricing.badge}</p>
+        <p class="plan-card__label plan-card__label--accent">{pricing.premium.label}</p>
+        <p class="plan-card__price plan-card__price--accent">{pricing.premium.price}</p>
+        <p class="plan-card__text plan-card__text--bright">{pricing.premium.text}</p>
+
+        <ul class="plan-card__features">
+          {
+            pricing.premium.features.map((feature) => (
+              <li class="plan-card__feature">
+                <span class="plan-card__marker plan-card__marker--accent" aria-hidden="true" />
+                <span>{feature}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <a
+          class="btn btn--primary btn--md plan-card__cta"
+          href={pricing.premium.href}
+          data-cta="price_premium"
+        >
+          {pricing.premium.ctaLabel}
+        </a>
+      </article>
+    </div>
+
+    <div class="pricing__terms">
+      <p class="pricing__guarantee">{pricing.guarantee}</p>
+      <p class="pricing__payment">{pricing.payment}</p>
+    </div>
+  </div>
+</section>
+
+<style>
+  .pricing__title {
+    max-width: 22ch;
+  }
+
+  .pricing__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 28px;
+  }
+
+  .plan-card {
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+  }
+
+  .plan-card--base {
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  .plan-card--premium {
+    background: var(--card-primary);
+    border: 1px solid var(--accent);
+  }
+
+  .plan-card__badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    padding: 8px 14px;
+  }
+
+  .plan-card__label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .plan-card__label--accent {
+    color: var(--accent);
+  }
+
+  .plan-card__price {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 4vw, 46px);
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .plan-card__price--accent {
+    color: var(--accent);
+  }
+
+  .plan-card__text {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .plan-card__text--bright {
+    color: var(--text-card);
+  }
+
+  .plan-card__features {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .plan-card__feature {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-card);
+  }
+
+  .plan-card__marker {
+    width: 8px;
+    height: 8px;
+    margin-top: 8px;
+    flex: none;
+    background: var(--text-muted);
+  }
+
+  .plan-card__marker--accent {
+    background: var(--accent);
+  }
+
+  /* Кнопка прижата к низу, чтобы карточки выравнивались по нижнему краю. */
+  .plan-card__cta {
+    margin-top: auto;
+  }
+
+  .pricing__terms {
+    border-top: 1px solid var(--border-soft);
+    padding-top: 24px;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    font-size: 17px;
+  }
+
+  .pricing__guarantee {
+    color: var(--accent);
+  }
+
+  .pricing__payment {
+    color: var(--text-muted);
+  }
+</style>

@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import { landingB } from '../content/landing-b';
+import Landing from '../layouts/Landing.astro';
+---
+
+<Landing meta={landingB.meta} path="/sila/">
+  <LandingPage content={landingB} />
+</Landing>

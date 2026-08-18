@@ -1,0 +1,106 @@
+---
+import type { Hero } from '../content/types';
+
+interface Props {
+  hero: Hero;
+}
+
+const { hero } = Astro.props;
+---
+
+<section class="hero" data-section="hero">
+  <img
+    class="hero__image"
+    src={hero.image}
+    alt=""
+    aria-hidden="true"
+    fetchpriority="high"
+    style={hero.imageBrightness ? `filter: brightness(${hero.imageBrightness})` : undefined}
+  />
+  <div class="hero__scrim"></div>
+
+  <div class="hero__inner container">
+    <p class="kicker">{hero.kicker}</p>
+    <h1 class="hero__title" style={`max-width: ${hero.titleWidth}`}>{hero.title}</h1>
+    <p class="hero__lead" style={`max-width: ${hero.leadWidth}`}>{hero.lead}</p>
+
+    <div class="hero__actions">
+      <a class="btn btn--primary btn--lg" href="#price" data-cta="hero">{hero.primaryCta}</a>
+      <a class="btn btn--ghost btn--lg" href="#program">{hero.secondaryCta}</a>
+    </div>
+
+    <ul class="hero__trust">
+      {hero.trust.map((item) => <li>{item}</li>)}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 82vh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .hero__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      88deg,
+      rgba(6, 6, 5, 0.96) 0%,
+      rgba(6, 6, 5, 0.88) 48%,
+      rgba(6, 6, 5, 0.35) 85%,
+      rgba(6, 6, 5, 0.15) 100%
+    );
+  }
+
+  .hero__inner {
+    position: relative;
+    padding-block: var(--section-y);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .hero__title {
+    font-family: var(--font-display);
+    font-size: clamp(40px, 7vw, 84px);
+    font-weight: 800;
+    line-height: 0.98;
+    letter-spacing: -0.03em;
+  }
+
+  .hero__lead {
+    font-size: clamp(18px, 2.2vw, 26px);
+    line-height: 1.45;
+    color: var(--text-lead);
+  }
+
+  .hero__actions {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .hero__trust {
+    margin: 0;
+    padding: 8px 0 0;
+    list-style: none;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+</style>

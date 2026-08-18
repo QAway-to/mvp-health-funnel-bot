@@ -1,0 +1,283 @@
+/*
+ * Дизайн-токены и базовые примитивы.
+ * Значения взяты из хендоффа (docs/design-handoff.md), менять только вместе с макетом.
+ */
+
+:root {
+  /* Фоны */
+  --bg-base: #080807;
+  --bg-alt: #0d0c0a;
+  --card-secondary: #141310;
+  --card-primary: #191713;
+
+  /* Текст */
+  --text: #f7f2e7;
+  --text-card: #e4dccb;
+  --text-lead: #cfc7b6;
+  --text-secondary: #bdb4a2;
+  --text-muted: #8c8577;
+  --text-footer: #6e685c;
+
+  /* Акценты */
+  --accent: #e8b23c;
+  --accent-hover: #f5ce77;
+  --accent-problem: #c9603c;
+  --accent-faq: #9e6fb0;
+  --on-accent: #12100d;
+
+  /* Границы */
+  --border-hairline: #1e1b16;
+  --border-soft: #241f18;
+  --border-strong: #3a342a;
+
+  /* Типографика */
+  --font-display: 'Onest', system-ui, sans-serif;
+  --font-body: 'Golos Text', system-ui, sans-serif;
+
+  /* Геометрия */
+  --container: 1200px;
+  --gutter: 24px;
+  --section-y: 80px;
+  --radius-button: 2px;
+
+  /* Компенсация sticky-хедера при переходе по якорю.
+     На мобильном хедер выше — два ряда вместо одного. */
+  --header-offset: 112px;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --header-offset: 88px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+[id] {
+  scroll-margin-top: var(--header-offset);
+}
+
+/* ---------- Примитивы ---------- */
+
+.container {
+  /* width обязателен: как флекс-элемент контейнер иначе сжимается
+     по содержимому и теряет общий левый край с остальными секциями. */
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  padding-block: var(--section-y);
+}
+
+.section--base {
+  background: var(--bg-base);
+}
+
+.section--alt {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.kicker {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+
+.kicker--problem {
+  color: var(--accent-problem);
+}
+
+.kicker--faq {
+  color: var(--accent-faq);
+}
+
+.h2 {
+  font-family: var(--font-display);
+  font-size: clamp(30px, 4vw, 54px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.025em;
+  max-width: 26ch;
+}
+
+.closer {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 24px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.4vw, 30px);
+  font-weight: 800;
+  color: var(--accent);
+}
+
+.note {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 24px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--accent);
+}
+
+/* Карточка-линия: заголовок под цветной чертой, без фона. */
+.rule-card {
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-card--problem {
+  border-top: 3px solid var(--accent-problem);
+}
+
+.rule-card--accent {
+  border-top: 3px solid var(--accent);
+}
+
+.rule-card__label {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent-problem);
+}
+
+.rule-card__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.rule-card__text {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.grid {
+  display: grid;
+}
+
+/* ---------- Кнопки ---------- */
+
+.btn {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  border-radius: var(--radius-button);
+  text-align: center;
+  /* Хит-таргет не меньше 44px даже у самой мелкой кнопки. */
+  min-height: 44px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn--primary:hover {
+  background: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.btn--ghost {
+  border: 1px solid var(--border-strong);
+  color: var(--text-card);
+  font-weight: 700;
+}
+
+.btn--ghost:hover {
+  border-color: var(--accent);
+  color: var(--accent-hover);
+}
+
+.btn--sm {
+  font-size: 16px;
+  padding: 12px 22px;
+}
+
+.btn--md {
+  font-size: 18px;
+  padding: 18px 28px;
+}
+
+.btn--lg {
+  font-size: 20px;
+  padding: 20px 36px;
+}
+
+/* У контурной кнопки рамка съедает пиксель — компенсируем padding. */
+.btn--ghost.btn--lg {
+  padding: 19px 32px;
+}

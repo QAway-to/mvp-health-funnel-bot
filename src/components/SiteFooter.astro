@@ -1,0 +1,53 @@
+---
+import { site } from '../config/site';
+---
+
+<footer class="footer">
+  <div class="footer__inner container">
+    <p class="footer__legal">
+      {site.author.name} · {site.legal.year} · {site.legal.entity}
+    </p>
+
+    <nav class="footer__links" aria-label="Правовая информация">
+      <a class="footer__link" href={site.links.offer}>Оферта</a>
+      <a class="footer__link" href={site.links.privacy}>Политика конфиденциальности</a>
+      <a class="footer__link" href={site.links.contact}>Связаться</a>
+    </nav>
+  </div>
+</footer>
+
+<style>
+  .footer {
+    background: var(--bg-base);
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .footer__inner {
+    padding-block: 40px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer__legal {
+    font-size: 15px;
+    color: var(--text-footer);
+  }
+
+  .footer__links {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .footer__link {
+    font-size: 15px;
+    color: var(--text-footer);
+  }
+
+  .footer__link:hover {
+    color: var(--accent-hover);
+  }
+</style>

@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import { landingA } from '../content/landing-a';
+import Landing from '../layouts/Landing.astro';
+---
+
+<Landing meta={landingA.meta} path="/bez-boli/">
+  <LandingPage content={landingA} />
+</Landing>

@@ -1,0 +1,119 @@
+---
+import type { Plan } from '../content/types';
+
+interface Props {
+  plan: Plan;
+  tone: 'base' | 'alt';
+}
+
+const { plan, tone } = Astro.props;
+---
+
+<section class={`section section--${tone}`} data-section="plan">
+  <div class="container stack">
+    <p class="kicker">{plan.kicker}</p>
+    <h2 class="h2 plan__title">{plan.title}</h2>
+
+    <div class={`plan__grid plan__grid--${plan.variant}`}>
+      {
+        plan.items.map((item) => (
+          <article class={`plan__item plan__item--${plan.variant}`}>
+            <p class="plan__label">{item.label}</p>
+            <h3 class="plan__item-title">{item.title}</h3>
+            <p class="plan__item-text">{item.text}</p>
+            {item.note && <p class="plan__item-note">{item.note}</p>}
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="note">{plan.closer}</p>
+  </div>
+</section>
+
+<style>
+  .plan__title {
+    max-width: 24ch;
+  }
+
+  .plan__grid {
+    display: grid;
+  }
+
+  /* Лендинг А — карточки по дням: линия сверху, без фона. */
+  .plan__grid--days {
+    grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+    gap: 24px;
+  }
+
+  /* Лендинг Б — карточки-недели: фон и толстая линия. */
+  .plan__grid--weeks {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 28px;
+  }
+
+  .plan__item {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .plan__item--days {
+    border-top: 3px solid var(--accent);
+    padding-top: 18px;
+    gap: 10px;
+  }
+
+  .plan__item--weeks {
+    background: var(--card-primary);
+    border-top: 5px solid var(--accent);
+    padding: 28px;
+    gap: 14px;
+  }
+
+  .plan__label {
+    font-family: var(--font-display);
+    font-weight: 800;
+    color: var(--accent);
+    font-size: 14px;
+    letter-spacing: 0.12em;
+  }
+
+  .plan__item--weeks .plan__label {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .plan__item-title {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .plan__item--weeks .plan__item-title {
+    font-size: 28px;
+    line-height: 1;
+  }
+
+  .plan__item-text {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .plan__item--weeks .plan__item-text {
+    font-size: 17px;
+    color: var(--text-card);
+  }
+
+  .plan__item-note {
+    border-top: 1px solid var(--border-soft);
+    padding-top: 12px;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

@@ -1,0 +1,98 @@
+---
+import type { NavLink } from '../content/types';
+
+interface Props {
+  brand: string;
+  nav: readonly NavLink[];
+  ctaLabel: string;
+}
+
+const { brand, nav, ctaLabel } = Astro.props;
+---
+
+<header class="header">
+  <div class="header__inner container">
+    <span class="header__brand">{brand}</span>
+
+    <nav class="header__nav" aria-label="Основная навигация">
+      {nav.map((link) => <a class="header__link" href={link.href}>{link.label}</a>)}
+    </nav>
+
+    <a class="btn btn--primary btn--sm header__cta" href="#price" data-cta="header">{ctaLabel}</a>
+  </div>
+</header>
+
+<style>
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(8, 8, 7, 0.92);
+    border-bottom: 1px solid var(--border-hairline);
+    backdrop-filter: blur(8px);
+  }
+
+  .header__inner {
+    padding-block: 16px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .header__brand {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .header__nav {
+    /* Ссылки и кнопка прижаты вправо, как в макете. */
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .header__link {
+    font-size: 16px;
+    color: var(--text-secondary);
+  }
+
+  .header__link:hover {
+    color: var(--accent-hover);
+  }
+
+  /* На узких экранах три элемента в одну строку не помещаются и хедер
+     разрастается на три ряда. Складываем в два: логотип с кнопкой, ссылки под ними. */
+  @media (max-width: 719px) {
+    .header__inner {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'brand cta'
+        'nav nav';
+      gap: 12px 16px;
+      align-items: center;
+    }
+
+    .header__brand {
+      grid-area: brand;
+      font-size: 17px;
+    }
+
+    .header__nav {
+      grid-area: nav;
+      margin-left: 0;
+      gap: 20px;
+    }
+
+    .header__cta {
+      grid-area: cta;
+      padding: 10px 16px;
+      font-size: 15px;
+    }
+  }
+</style>

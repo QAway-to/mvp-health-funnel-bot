@@ -1,0 +1,43 @@
+services:
+  - type: web
+    name: mvp-running-landings
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    pullRequestPreviewsEnabled: true
+
+    envVars:
+      # Базовый URL для canonical, OG-тегов и sitemap.
+      # После привязки домена заменить на боевой адрес.
+      - key: PUBLIC_SITE_URL
+        value: https://mvp-running-landings.onrender.com
+      - key: NODE_VERSION
+        value: 22.12.0
+
+    headers:
+      # Хешированные ассеты Astro можно кэшировать навсегда.
+      - path: /_astro/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /img/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # HTML всегда перепроверяется, иначе правки цен доедут не сразу.
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+
+    routes:
+      # Многостраничная статика: SPA-фолбэк не нужен, только чистые адреса.
+      - type: redirect
+        source: /a
+        destination: /bez-boli
+      - type: redirect
+        source: /b
+        destination: /sila
