@@ -6,5 +6,3 @@ export const nav: readonly NavLink[] = [
   { label: 'Цена', href: '#price' },
   { label: 'Вопросы', href: '#faq' },
 ];
-
-export const headerCta = 'Получить доступ';

@@ -51,6 +51,12 @@
   }
 }
 
+@media (max-width: 719px) {
+  body:has([data-sticky-cta]) {
+    padding-bottom: 84px;
+  }
+}
+
 *,
 *::before,
 *::after {
@@ -76,6 +82,8 @@ html {
 
 body {
   margin: 0;
+  /* Место под закреплённую панель CTA — она есть только на мобильном. */
+  padding-bottom: 0;
   width: 100%;
   overflow-x: hidden;
   background: var(--bg-base);

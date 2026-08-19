@@ -1,5 +1,13 @@
 ---
+import Cta from './Cta.astro';
+import { routes } from '../config/site';
+import { ctaLabels } from '../content/cta';
 import type { Hero } from '../content/types';
+
+/**
+ * В первом экране цены нет. Основное действие — бесплатная ступень,
+ * вторичное — посмотреть демо-урок: до цены человек должен получить пользу.
+ */
 
 interface Props {
   hero: Hero;
@@ -25,8 +33,8 @@ const { hero } = Astro.props;
     <p class="hero__lead" style={`max-width: ${hero.leadWidth}`}>{hero.lead}</p>
 
     <div class="hero__actions">
-      <a class="btn btn--primary btn--lg" href="#price" data-cta="hero">{hero.primaryCta}</a>
-      <a class="btn btn--ghost btn--lg" href="#program">{hero.secondaryCta}</a>
+      <Cta kind="primary" href={routes.start} placement="hero">{ctaLabels.free}</Cta>
+      <Cta kind="secondary" href={routes.demo} placement="hero_demo">{ctaLabels.demo}</Cta>
     </div>
 
     <ul class="hero__trust">

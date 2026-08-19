@@ -1,0 +1,51 @@
+---
+/**
+ * Единственная кнопка на сайте. Типов ровно три, и они не смешиваются:
+ *
+ *   primary   — бесплатная ступень («Забрать первый шаг бесплатно») → /start/
+ *   secondary — узнать больше («Посмотреть демо-урок», «Что внутри») → /demo/, /kurs/
+ *   sales     — покупка («Получить гайд — ЦЕНА») → чекаут
+ *
+ * ПРАВИЛО: `kind="sales"` не ставится выше 60% глубины страницы — ни в шапке,
+ * ни в первом экране. До этой отметки человек ещё не понял, что ему продают.
+ * Проверить размещение можно так:
+ *   grep -rn 'kind="sales"' src/
+ */
+
+interface Props {
+  kind: 'primary' | 'secondary' | 'sales';
+  href: string;
+  /** Где стоит кнопка: попадёт в аналитику как `placement`. */
+  placement: string;
+  size?: 'sm' | 'md' | 'lg';
+  /** Растянуть на всю ширину контейнера. */
+  block?: boolean;
+  class?: string;
+}
+
+const { kind, href, placement, size = 'lg', block = false, class: extraClass = '' } = Astro.props;
+
+/** primary и sales оба яркие — различие смысловое, не визуальное. */
+const style = kind === 'secondary' ? 'btn--ghost' : 'btn--primary';
+
+const classes = [
+  'btn',
+  style,
+  `btn--${size}`,
+  block ? 'btn--block' : '',
+  extraClass,
+]
+  .filter(Boolean)
+  .join(' ');
+---
+
+<a class={classes} href={href} data-cta={placement} data-cta-kind={kind}>
+  <slot />
+</a>
+
+<style>
+  .btn--block {
+    display: block;
+    width: 100%;
+  }
+</style>

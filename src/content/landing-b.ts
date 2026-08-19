@@ -1,5 +1,5 @@
 import { site } from '../config/site';
-import { headerCta, nav } from './nav';
+import { nav } from './nav';
 import type { LandingContent } from './types';
 
 /** Лендинг Б — «Бег как сила». Те, кто уже тренируется, обращение на «ты». */
@@ -15,7 +15,6 @@ export const landingB: LandingContent = {
   },
 
   nav,
-  headerCta,
 
   hero: {
     kicker: 'Онлайн-гайд · 21 день · 5–10 минут в день',
@@ -25,8 +24,6 @@ export const landingB: LandingContent = {
     leadWidth: '54ch',
     image: '/img/race-road.jpg',
     imageBrightness: 0.7,
-    primaryCta: `Получить доступ — ${site.pricing.premium}`,
-    secondaryCta: 'Что внутри',
     trust: [
       'Цель к 21-му дню: 5 км легко, без боли на следующий день',
       `Гарантия · ${site.pricing.guarantee}`,

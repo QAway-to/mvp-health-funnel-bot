@@ -22,8 +22,6 @@ export interface Hero {
   readonly image: string;
   /** Затемнение фонового фото, если в макете задан filter: brightness(). */
   readonly imageBrightness?: number;
-  readonly primaryCta: string;
-  readonly secondaryCta: string;
   readonly trust: readonly string[];
 }
 
@@ -160,7 +158,6 @@ export interface LandingContent {
   readonly brand: string;
   readonly meta: Meta;
   readonly nav: readonly NavLink[];
-  readonly headerCta: string;
   readonly hero: Hero;
   readonly mirror: Mirror;
   readonly reasons: Reasons;

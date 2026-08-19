@@ -1,5 +1,5 @@
 import { site } from '../config/site';
-import { headerCta, nav } from './nav';
+import { nav } from './nav';
 import type { LandingContent } from './types';
 
 /** Лендинг А — «Бег без боли». Аудитория с болью в коленях, обращение на «вы». */
@@ -15,7 +15,6 @@ export const landingA: LandingContent = {
   },
 
   nav,
-  headerCta,
 
   hero: {
     kicker: 'Онлайн-гайд · 5–10 минут в день',
@@ -24,8 +23,6 @@ export const landingA: LandingContent = {
     lead: 'Боль появляется от четырёх привычек: маршрута, приземления, обуви и объёма. Все четыре меняются техникой — без зала, снаряжения и километров через силу.',
     leadWidth: '52ch',
     image: '/img/silhouettes.jpg',
-    primaryCta: `Получить доступ — ${site.pricing.premium}`,
-    secondaryCta: 'Что внутри',
     trust: [
       `Гарантия возврата · ${site.pricing.guarantee}`,
       `Автор — ${site.author.name}`,

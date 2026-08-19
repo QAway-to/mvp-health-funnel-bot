@@ -1,4 +1,5 @@
 ---
+import Cta from './Cta.astro';
 import type { FinalCta } from '../content/types';
 
 interface Props {
@@ -25,9 +26,7 @@ const { finalCta } = Astro.props;
     <p class="final__lead">{finalCta.lead}</p>
 
     <div class="final__actions">
-      <a class="btn btn--primary btn--lg" href={finalCta.href} data-cta="final">
-        {finalCta.ctaLabel}
-      </a>
+      <Cta kind="sales" href={finalCta.href} placement="final">{finalCta.ctaLabel}</Cta>
       <p class="final__note">{finalCta.note}</p>
     </div>
   </div>

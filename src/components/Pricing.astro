@@ -1,4 +1,5 @@
 ---
+import Cta from './Cta.astro';
 import type { Pricing } from '../content/types';
 
 interface Props {
@@ -31,9 +32,9 @@ const { pricing, tone } = Astro.props;
           }
         </ul>
 
-        <a class="btn btn--ghost btn--md plan-card__cta" href={pricing.base.href} data-cta="price_base">
+        <Cta kind="sales" href={pricing.base.href} placement="price_base" size="md" class="plan-card__cta plan-card__cta--outline">
           {pricing.base.ctaLabel}
-        </a>
+        </Cta>
       </article>
 
       <article class="plan-card plan-card--premium">
@@ -53,13 +54,9 @@ const { pricing, tone } = Astro.props;
           }
         </ul>
 
-        <a
-          class="btn btn--primary btn--md plan-card__cta"
-          href={pricing.premium.href}
-          data-cta="price_premium"
-        >
+        <Cta kind="sales" href={pricing.premium.href} placement="price_premium" size="md" class="plan-card__cta">
           {pricing.premium.ctaLabel}
-        </a>
+        </Cta>
       </article>
     </div>
 
@@ -176,9 +173,24 @@ const { pricing, tone } = Astro.props;
     background: var(--accent);
   }
 
-  /* Кнопка прижата к низу, чтобы карточки выравнивались по нижнему краю. */
-  .plan-card__cta {
+  /* Кнопку рисует компонент Cta, поэтому scoped-селектор до неё не долетает:
+     оборачиваем в :global, оставляя привязку к карточке. */
+  .plan-card :global(.plan-card__cta) {
+    /* Прижата к низу, чтобы карточки выравнивались по нижнему краю. */
     margin-top: auto;
+  }
+
+  /* База — тоже покупка, но визуально уступает премиуму. */
+  .plan-card :global(.plan-card__cta--outline) {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-card);
+  }
+
+  .plan-card :global(.plan-card__cta--outline:hover) {
+    background: transparent;
+    border-color: var(--accent);
+    color: var(--accent-hover);
   }
 
   .pricing__terms {

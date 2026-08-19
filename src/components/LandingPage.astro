@@ -12,6 +12,7 @@ import Program from './Program.astro';
 import Reasons from './Reasons.astro';
 import SiteFooter from './SiteFooter.astro';
 import SiteHeader from './SiteHeader.astro';
+import StickyCta from './StickyCta.astro';
 import type { LandingContent } from '../content/types';
 
 interface Props {
@@ -28,7 +29,7 @@ let toneIndex = 0;
 const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
 ---
 
-<SiteHeader brand={content.brand} nav={content.nav} ctaLabel={content.headerCta} />
+<SiteHeader brand={content.brand} nav={content.nav} />
 
 <main>
   <Hero hero={content.hero} />
@@ -43,5 +44,7 @@ const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
   <Faq faq={content.faq} tone={nextTone()} />
   <FinalCta finalCta={content.finalCta} />
 </main>
+
+<StickyCta checkoutHref={content.pricing.premium.href} />
 
 <SiteFooter />
