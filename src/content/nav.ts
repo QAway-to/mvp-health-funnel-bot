@@ -6,3 +6,12 @@ export const nav: readonly NavLink[] = [
   { label: 'Цена', href: '#price' },
   { label: 'Вопросы', href: '#faq' },
 ];
+
+/**
+ * Навигация для страниц вне лендингов: там нет якорных секций,
+ * поэтому ведём на сами сценарии.
+ */
+export const standaloneNav: readonly NavLink[] = [
+  { label: 'Бег без боли', href: '/bez-boli/' },
+  { label: 'Бег как сила', href: '/sila/' },
+];

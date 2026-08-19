@@ -1,0 +1,150 @@
+---
+import Cta from '../components/Cta.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { site, routes } from '../config/site';
+import { home } from '../content/home';
+import { standaloneNav } from '../content/nav';
+import Landing from '../layouts/Landing.astro';
+
+/**
+ * Бесплатная ступень воронки.
+ *
+ * Формы на странице нет: заявка уходит в Telegram-бот
+ * (`site.lead.destination === 'telegram_bot'`), поэтому сайт остаётся
+ * статикой — не нужен бэкенд и не хранятся персональные данные.
+ */
+
+const meta = {
+  title: 'Первый шаг бесплатно — 7-дневный старт по естественной технике бега',
+  description: `${site.lead.promise}. Без оплаты: разбор первых семи дней, короткие видео и чек-лист.`,
+  ogImage: '/img/barefoot-step.jpg',
+};
+
+const { leadMagnet } = home;
+const hasBot = !site.lead.telegramUrl.startsWith('{');
+---
+
+<Landing meta={meta} path={routes.start}>
+  <SiteHeader brand="Бег без боли" nav={standaloneNav} showCta={false} />
+
+  <main class="start">
+    <div class="container start__inner">
+      <p class="kicker">{leadMagnet.kicker}</p>
+      <h1 class="start__title">{leadMagnet.title}</h1>
+      <p class="start__lead">{leadMagnet.lead}</p>
+
+      <ul class="start__points">
+        {leadMagnet.points.map((point) => <li class="start__point">{point}</li>)}
+      </ul>
+
+      <div class="start__action">
+        {
+          hasBot ? (
+            <Cta kind="primary" href={site.lead.telegramUrl} placement="start_page">
+              Забрать в Telegram
+            </Cta>
+          ) : (
+            <p class="start__todo">
+              Ссылка на Telegram-бот пока не задана. Укажите её в <code>src/config/site.ts</code> →
+              <code>lead.telegramUrl</code>, и кнопка появится.
+            </p>
+          )
+        }
+
+        <p class="start__note">Бесплатно и без оплаты. Отписаться можно в одно нажатие.</p>
+      </div>
+
+      <p class="start__back">
+        Уже понимаете, чего хотите? <a href={routes.bezBoli}>Бег без боли</a> или
+        <a href={routes.sila}>Бег как сила</a>.
+      </p>
+    </div>
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .start {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+  }
+
+  .start__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    padding-block: 72px;
+    max-width: 760px;
+  }
+
+  .start__title {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5.4vw, 60px);
+    font-weight: 800;
+    line-height: 1;
+    letter-spacing: -0.03em;
+  }
+
+  .start__lead {
+    font-size: clamp(18px, 2.2vw, 24px);
+    line-height: 1.45;
+    color: var(--text-lead);
+  }
+
+  .start__points {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .start__point {
+    position: relative;
+    padding-left: 22px;
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-card);
+  }
+
+  .start__point::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 10px;
+    width: 8px;
+    height: 8px;
+    background: var(--accent);
+  }
+
+  .start__action {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-items: flex-start;
+    padding-top: 8px;
+  }
+
+  .start__note,
+  .start__back {
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+
+  .start__todo {
+    border-left: 3px solid var(--accent-problem);
+    padding: 12px 16px;
+    background: var(--card-secondary);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .start__todo code {
+    color: var(--accent);
+  }
+</style>

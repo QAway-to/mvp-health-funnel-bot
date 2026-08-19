@@ -1,0 +1,222 @@
+---
+import Cta from '../components/Cta.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import { site, routes } from '../config/site';
+import { landingA } from '../content/landing-a';
+import { standaloneNav } from '../content/nav';
+import Landing from '../layouts/Landing.astro';
+
+/**
+ * Бесплатный демо-урок: пользу человек получает до того, как увидит цену.
+ *
+ * Видео и расшифровку даёт заказчик. Пока `site.demo.videoUrl` пуст,
+ * вместо плеера стоит явная заглушка, а не выдуманный контент.
+ */
+
+const meta = {
+  title: 'Бесплатный демо-урок — естественная техника бега',
+  description:
+    'Один урок целиком и бесплатно: постановка стопы под тело, мягкое колено, короткий частый шаг и дыхание животом.',
+  ogImage: '/img/barefoot-step.jpg',
+};
+
+const hasVideo = site.demo.videoUrl.length > 0;
+const hasTranscript = site.demo.transcript.length > 0;
+
+/** Разбор техники берём из существующего контента, чтобы формулировки совпадали. */
+const { mechanism } = landingA;
+---
+
+<Landing meta={meta} path={routes.demo}>
+  <SiteHeader brand="Бег без боли" nav={standaloneNav} />
+
+  <main>
+    <section class="section section--alt" data-section="demo">
+      <div class="container stack">
+        <p class="kicker">Бесплатный урок</p>
+        <h1 class="h2">{mechanism.title}</h1>
+
+        <div class="demo__player">
+          {
+            hasVideo ? (
+              <video
+                class="demo__video"
+                src={site.demo.videoUrl}
+                poster={site.demo.poster}
+                controls
+                preload="none"
+                data-demo-video
+              />
+            ) : (
+              <div class="demo__placeholder">
+                <img src={site.demo.poster} alt="" aria-hidden="true" loading="lazy" />
+                <p class="demo__placeholder-text">
+                  Здесь будет видео урока. Укажите ссылку в <code>src/config/site.ts</code> →
+                  <code>demo.videoUrl</code>.
+                </p>
+              </div>
+            )
+          }
+        </div>
+
+        <div class="demo__grid">
+          {
+            mechanism.items.map((item) => (
+              <article class="demo__item">
+                <h2 class="demo__item-title">{item.title}</h2>
+                <p class="demo__item-text">{item.text}</p>
+              </article>
+            ))
+          }
+        </div>
+
+        <p class="note">{mechanism.note}</p>
+
+        {
+          hasTranscript ? (
+            <div class="demo__transcript">
+              <h2 class="demo__transcript-title">Расшифровка урока</h2>
+              <p class="demo__transcript-text">{site.demo.transcript}</p>
+            </div>
+          ) : null
+        }
+      </div>
+    </section>
+
+    <section class="section section--base">
+      <div class="container demo__next">
+        <h2 class="h2">Дальше — по порядку и с дозировками</h2>
+        <p class="demo__next-text">
+          Это один элемент из четырёх. Весь путь, план по дням и разбор ошибок — в гайде.
+        </p>
+
+        <div class="demo__actions">
+          <Cta kind="primary" href={routes.start} placement="demo_free">
+            Забрать первый шаг бесплатно
+          </Cta>
+          <Cta kind="sales" href={site.links.payPremium} placement="demo_sales">
+            Получить гайд — {site.pricing.premium}
+          </Cta>
+        </div>
+
+        <p class="demo__guarantee">Гарантия возврата: {site.pricing.guarantee}</p>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .demo__player {
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  .demo__video {
+    width: 100%;
+    height: auto;
+    display: block;
+    aspect-ratio: 16 / 9;
+    background: #000;
+  }
+
+  .demo__placeholder {
+    position: relative;
+    aspect-ratio: 16 / 9;
+    overflow: hidden;
+  }
+
+  .demo__placeholder img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(0.35);
+  }
+
+  .demo__placeholder-text {
+    position: absolute;
+    inset: auto 24px 24px 24px;
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-card);
+  }
+
+  .demo__placeholder-text code {
+    color: var(--accent);
+  }
+
+  .demo__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 28px;
+  }
+
+  .demo__item {
+    border-top: 3px solid var(--accent);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .demo__item-title {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .demo__item-text {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .demo__transcript {
+    border-top: 1px solid var(--border-soft);
+    padding-top: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .demo__transcript-title {
+    font-family: var(--font-display);
+    font-size: 24px;
+    font-weight: 800;
+  }
+
+  .demo__transcript-text {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    white-space: pre-line;
+  }
+
+  .demo__next {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .demo__next-text {
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    max-width: 52ch;
+  }
+
+  .demo__actions {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    padding-top: 4px;
+  }
+
+  .demo__guarantee {
+    font-size: 17px;
+    color: var(--accent);
+  }
+</style>

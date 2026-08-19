@@ -12,9 +12,11 @@ interface Props {
   brand: string;
   brandHref?: string;
   nav: readonly NavLink[];
+  /** На самой странице /start/ кнопка вела бы на неё же — прячем. */
+  showCta?: boolean;
 }
 
-const { brand, brandHref = routes.home, nav } = Astro.props;
+const { brand, brandHref = routes.home, nav, showCta = true } = Astro.props;
 ---
 
 <header class="header">
@@ -25,9 +27,13 @@ const { brand, brandHref = routes.home, nav } = Astro.props;
       {nav.map((link) => <a class="header__link" href={link.href}>{link.label}</a>)}
     </nav>
 
-    <Cta kind="primary" href={routes.start} placement="header" size="sm" class="header__cta">
-      Первый шаг бесплатно
-    </Cta>
+    {
+      showCta && (
+        <Cta kind="primary" href={routes.start} placement="header" size="sm" class="header__cta">
+          Первый шаг бесплатно
+        </Cta>
+      )
+    }
   </div>
 </header>
 
