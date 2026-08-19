@@ -21,8 +21,8 @@
 ```bash
 npm ci
 npm run dev      # http://localhost:4321
-npm run build    # сборка в dist/
-npm start        # раздать dist/ по HTTP (только для варианта с Web Service)
+npm run build    # сборка в dist/ + сжатие .br/.gz
+npm start        # поднять сервер на dist/ (то же, что на Render)
 npm run preview  # посмотреть собранное
 npm run check    # проверка типов
 ```
@@ -70,49 +70,48 @@ public/img/               ← шесть фотографий из хендоф�
 
 `src/scripts/analytics.ts` отправляет `cta_click` (с `placement`: header / hero / price_base / price_premium / final) и `scroll_depth` (с `section`) в `window.dataLayer` и `window.gtag`. Счётчик не зашит — добавить GTM или gtag в `src/layouts/Landing.astro`, события поедут сами.
 
-## Деплой на Render
+## Деплой на Render (Web Service)
 
-В корне лежит `render.yaml` (Blueprint) — Static Site. Порядок: **New → Blueprint**, указать репозиторий, Render поднимет сервис сам.
+Сайт разворачивается как **Web Service**: сборка отдаётся Node-сервером `server.mjs`, который слушает `PORT` и раздаёт `dist/`.
 
-- Build Command: `npm ci && npm run build`, Publish Directory: `dist`
-- `NODE_VERSION` = 22.12.0 — нужен только на сборке, рантайма у статики нет
-- TLS, HTTP/2 и Brotli Render включает сам, настраивать нечего
+Настройки сервиса:
+
+| Поле | Значение |
+| --- | --- |
+| Build Command | `npm install && npm run build` |
+| Start Command | `npm start` |
+
+Больше ничего задавать не нужно: версия Node берётся из `.node-version`, порт Render передаёт сам.
+
+### Что делает сервер
+
+Web Service — это обычный процесс, поэтому всё, что у статических хостингов лежит в конфиге, здесь реализовано в `server.mjs`:
+
+- редиректы `/bez-boli` → `/bez-boli/`, `/sila` → `/sila/` и короткие `/a`, `/b` (query-параметры сохраняются, UTM-метки не теряются);
+- `Cache-Control: immutable` на `/_astro/*` и `/img/*`, `no-cache` на HTML — правка цены доезжает сразу после деплоя;
+- `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`;
+- `404.html` со статусом 404, а не 200;
+- закрытие по `SIGTERM`, иначе каждый деплой ждёт таймаута.
+
+### Сжатие
+
+За Web Service ответы никто не сжимает — этим занимается сам сервер. `npm run build` после сборки кладёт рядом с текстовыми файлами `.br` и `.gz` (`scripts/precompress.mjs`), а `server.mjs` их отдаёт. HTML лендинга уезжает **6.9 КБ вместо 33.6 КБ**.
+
+Шаг встроен в общий `build` намеренно: build-команда одна, перепутать её в настройках нельзя.
 
 ### Адреса со слешем
 
-Сборка кладёт страницы папками (`dist/bez-boli/index.html`), поэтому канонический адрес — **со слешем**: `/bez-boli/`. Как хостинг обрабатывает адрес без слеша, Render в документации не описывает, а локальный статический сервер на `/bez-boli` отдаёт 404. Поэтому:
-
-- `trailingSlash: 'always'` в `astro.config.mjs` — canonical, OG и sitemap всегда со слешем;
-- в `render.yaml` редиректы `/bez-boli` → `/bez-boli/` и `/sila` → `/sila/`.
-
-Рекламу можно вести на любой из двух вариантов и на короткие `/a` и `/b`.
-
-### Кэш
-
-`immutable` на `/_astro/*` и `/img/*` (имена файлов хешированы), `no-cache` на HTML — правка цены доезжает сразу после деплоя, а не через сутки.
+Страницы собираются папками (`dist/bez-boli/index.html`), поэтому канонический адрес — **со слешем**: `/bez-boli/`. За это отвечает `trailingSlash: 'always'` в `astro.config.mjs` — canonical, OG и sitemap согласованы между собой. Вариант без слеша уводится редиректом, так что рекламу можно вести на любой из них.
 
 ### Домен
 
-После первого деплоя: Settings → Custom Domain, добавить домен, прописать CNAME у регистратора, дождаться выпуска сертификата. **Затем обязательно поменять `PUBLIC_SITE_URL`** на боевой адрес и передеплоить — иначе canonical, OG-теги и sitemap останутся с адресом `onrender.com`.
+Settings → Custom Domain, добавить домен, прописать CNAME у регистратора, дождаться сертификата.
 
-### Альтернатива: Web Service
+**Затем обязательно** поменять переменную `PUBLIC_SITE_URL` на боевой адрес (Environment) и передеплоить — иначе canonical, OG-теги и sitemap останутся с адресом `onrender.com`: страницы откроются, но превью в мессенджерах и индексация будут указывать не туда.
 
-Static Site — рекомендуемый вариант. Но если сервис уже создан как **Web Service**, пересоздавать его не обязательно: в репозитории есть `server.mjs`, который слушает `PORT` и раздаёт `dist`.
+### Про render.yaml
 
-В настройках сервиса:
-
-- Build Command: `npm ci && npm run build:server`
-- Start Command: `npm start`
-
-`build:server` дополнительно кладёт рядом с текстовыми файлами `.br` и `.gz` (`scripts/precompress.mjs`), а `server.mjs` их отдаёт: за web service ответы никто не сжимает, в отличие от CDN у статики. HTML лендинга при этом уезжает 6.9 КБ вместо 33.6 КБ.
-
-**Важно:** `headers` и `routes` из `render.yaml` — поля только для Static Site, на Web Service они не действуют. Поэтому редиректы, кэш и заголовки безопасности продублированы в `server.mjs` и правятся в двух местах одновременно.
-
-Что теряется по сравнению со Static Site: раздача через глобальный CDN, бесплатный тариф и отсутствие холодного старта. Выигрыша нет никакого — вариант нужен только чтобы не пересоздавать существующий сервис.
-
-### Чего в конфиге намеренно нет
-
-SPA-rewrite `/*` → `/index.html`. Это многостраничная статика, такое правило сломало бы 404: любой битый адрес отдавал бы главную со статусом 200. Вместо этого собирается `dist/404.html`.
+Файл в корне описывает альтернативный вариант — Static Site через Blueprint. **В текущей схеме он не используется**: поля `headers` и `routes` в нём работают только для Static Site и на Web Service не действуют. Источник правды для редиректов и заголовков — `server.mjs`.
 
 ## Отступления от прототипа
 

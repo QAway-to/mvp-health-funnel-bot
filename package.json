@@ -8,8 +8,7 @@
   },
   "scripts": {
     "dev": "astro dev",
-    "build": "astro build",
-    "build:server": "astro build && node scripts/precompress.mjs",
+    "build": "astro build && node scripts/precompress.mjs",
     "start": "node server.mjs",
     "preview": "astro preview",
     "check": "astro check"

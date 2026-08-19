@@ -1,3 +1,14 @@
+# ВНИМАНИЕ: в текущей схеме этот файл НЕ используется.
+#
+# Сайт развёрнут как Render Web Service, созданный вручную:
+#   Build Command: npm install && npm run build
+#   Start Command: npm start
+# Редиректы, кэш и заголовки живут в server.mjs — правьте их там.
+#
+# Файл описывает альтернативу (Static Site через Blueprint) и оставлен
+# на случай перехода на неё. Поля headers и routes ниже действуют только
+# для Static Site, на Web Service они не применяются.
+
 services:
   - type: web
     name: mvp-running-landings

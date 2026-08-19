@@ -18,7 +18,7 @@ const HOST = '0.0.0.0';
 const ROOT = join(import.meta.dirname, 'dist');
 
 if (!existsSync(ROOT)) {
-  throw new Error(`Каталог ${ROOT} не найден — сначала выполните npm run build:server`);
+  throw new Error(`Каталог ${ROOT} не найден — сначала выполните npm run build`);
 }
 
 /** Адреса без слеша и короткие ссылки для рекламы. Значения — как в render.yaml. */
