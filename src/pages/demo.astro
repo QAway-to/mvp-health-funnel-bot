@@ -2,6 +2,7 @@
 import Cta from '../components/Cta.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
+import VideoPlayer from '../components/VideoPlayer.astro';
 import { site, routes } from '../config/site';
 import { landingA } from '../content/landing-a';
 import { standaloneNav } from '../content/nav';
@@ -21,7 +22,6 @@ const meta = {
   ogImage: '/img/barefoot-step.jpg',
 };
 
-const hasVideo = site.demo.videoUrl.length > 0;
 const hasTranscript = site.demo.transcript.length > 0;
 
 /** Разбор техники берём из существующего контента, чтобы формулировки совпадали. */
@@ -37,28 +37,11 @@ const { mechanism } = landingA;
         <p class="kicker">Бесплатный урок</p>
         <h1 class="h2">{mechanism.title}</h1>
 
-        <div class="demo__player">
-          {
-            hasVideo ? (
-              <video
-                class="demo__video"
-                src={site.demo.videoUrl}
-                poster={site.demo.poster}
-                controls
-                preload="none"
-                data-demo-video
-              />
-            ) : (
-              <div class="demo__placeholder">
-                <img src={site.demo.poster} alt="" aria-hidden="true" loading="lazy" />
-                <p class="demo__placeholder-text">
-                  Здесь будет видео урока. Укажите ссылку в <code>src/config/site.ts</code> →
-                  <code>demo.videoUrl</code>.
-                </p>
-              </div>
-            )
-          }
-        </div>
+        <VideoPlayer
+          url={site.demo.videoUrl}
+          poster={site.demo.poster}
+          title={site.demo.title.startsWith('{') ? '' : site.demo.title}
+        />
 
         <div class="demo__grid">
           {
@@ -109,43 +92,11 @@ const { mechanism } = landingA;
 </Landing>
 
 <style>
-  .demo__player {
-    background: var(--card-secondary);
-    border: 1px solid var(--border-soft);
-  }
 
-  .demo__video {
-    width: 100%;
-    height: auto;
-    display: block;
-    aspect-ratio: 16 / 9;
-    background: #000;
-  }
 
-  .demo__placeholder {
-    position: relative;
-    aspect-ratio: 16 / 9;
-    overflow: hidden;
-  }
 
-  .demo__placeholder img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
-    filter: brightness(1.04);
-  }
 
-  .demo__placeholder-text {
-    position: absolute;
-    inset: auto 24px 24px 24px;
-    font-size: 16px;
-    line-height: 1.55;
-    color: var(--text-card);
-  }
 
-  .demo__placeholder-text code {
-    color: var(--accent-text);
-  }
 
   .demo__grid {
     display: grid;
