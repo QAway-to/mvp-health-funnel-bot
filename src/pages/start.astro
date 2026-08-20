@@ -26,7 +26,7 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
 ---
 
 <Landing meta={meta} path={routes.start}>
-  <SiteHeader brand="Бег без боли" nav={standaloneNav} showCta={false} />
+  <SiteHeader brand="Бег без дискомфорта" nav={standaloneNav} showCta={false} />
 
   <main class="start">
     <div class="container start__inner">
@@ -56,7 +56,7 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
       </div>
 
       <p class="start__back">
-        Уже понимаете, чего хотите? <a href={routes.bezBoli}>Бег без боли</a> или
+        Уже понимаете, чего хотите? <a href={routes.bezDiskomforta}>Бег без дискомфорта</a> или
         <a href={routes.sila}>Бег как сила</a>.
       </p>
     </div>
@@ -137,6 +137,7 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
 
   .start__todo {
     border-left: 3px solid var(--accent-problem);
+    border-radius: 0;
     padding: 12px 16px;
     background: var(--card-secondary);
     font-size: 16px;
@@ -145,6 +146,6 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
   }
 
   .start__todo code {
-    color: var(--accent);
+    color: var(--accent-text);
   }
 </style>

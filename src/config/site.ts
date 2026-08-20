@@ -90,7 +90,7 @@ export const site = {
 /** Маршруты сайта в одном месте, чтобы ссылки не разъезжались. */
 export const routes = {
   home: '/',
-  bezBoli: '/bez-boli/',
+  bezDiskomforta: '/bez-diskomforta/',
   sila: '/sila/',
   start: '/start/',
   startThanks: '/start/spasibo/',

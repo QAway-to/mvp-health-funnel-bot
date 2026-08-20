@@ -12,6 +12,6 @@ export const nav: readonly NavLink[] = [
  * поэтому ведём на сами сценарии.
  */
 export const standaloneNav: readonly NavLink[] = [
-  { label: 'Бег без боли', href: '/bez-boli/' },
+  { label: 'Бег без дискомфорта', href: '/bez-diskomforta/' },
   { label: 'Бег как сила', href: '/sila/' },
 ];

@@ -1,7 +1,7 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <rect width="32" height="32" fill="#080807"/>
+  <rect width="32" height="32" fill="#F7F2E7"/>
   <!-- Три штриха шага: короткий, средний, длинный — ритм из макета. -->
-  <rect x="7" y="7" width="4" height="18" fill="#E8B23C"/>
-  <rect x="14" y="11" width="4" height="14" fill="#E8B23C"/>
-  <rect x="21" y="15" width="4" height="10" fill="#E8B23C"/>
+  <rect x="7" y="7" width="4" height="18" fill="#8A5A08"/>
+  <rect x="14" y="11" width="4" height="14" fill="#8A5A08"/>
+  <rect x="21" y="15" width="4" height="10" fill="#8A5A08"/>
 </svg>

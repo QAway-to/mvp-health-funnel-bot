@@ -23,10 +23,15 @@ if (!existsSync(ROOT)) {
 
 /** Адреса без слеша и короткие ссылки для рекламы. Значения — как в render.yaml. */
 const REDIRECTS = new Map([
-  ['/bez-boli', '/bez-boli/'],
+  ['/bez-diskomforta', '/bez-diskomforta/'],
   ['/sila', '/sila/'],
-  ['/a', '/bez-boli/'],
+  ['/start', '/start/'],
+  ['/demo', '/demo/'],
+  ['/a', '/bez-diskomforta/'],
   ['/b', '/sila/'],
+  // Старый слаг: формулировка про боль убрана, но ссылки на неё уже разошлись.
+  ['/bez-boli', '/bez-diskomforta/'],
+  ['/bez-boli/', '/bez-diskomforta/'],
 ]);
 
 /** Хешированные ассеты и картинки кэшируются навсегда, HTML — никогда. */

@@ -23,9 +23,9 @@ export const landingB: LandingContent = {
     lead: 'Поэтому бег вылетает из расписания на второй неделе: ноют колени, падает тяга. Разберём механику шага и поставим бег так, чтобы он работал на силовую, а не против неё.',
     leadWidth: '54ch',
     image: '/img/race-road.jpg',
-    imageBrightness: 0.7,
+    imageBrightness: 1.04,
     trust: [
-      'Цель к 21-му дню: 5 км легко, без боли на следующий день',
+      'Цель к 21-му дню: 5 км легко, без тяжести на следующий день',
       `Гарантия · ${site.pricing.guarantee}`,
     ],
   },
@@ -206,7 +206,7 @@ export const landingB: LandingContent = {
         note: 'К концу недели пробежка собрана и повторяема.',
       },
     ],
-    closer: 'Цель к 21-му дню: 5 км в разговорном темпе, без остановки и без боли на следующий день.',
+    closer: 'Цель к 21-му дню: 5 км в разговорном темпе, без остановки и без тяжести на следующий день.',
   },
 
   author: {
@@ -247,7 +247,7 @@ export const landingB: LandingContent = {
       features: [
         'Разбор техники по твоему видео',
         'Встройка бега в твой недельный план',
-        'Протокол на «что-то заболело»',
+        'Протокол на «что-то беспокоит»',
         `${site.pricing.bonus} за оформление сегодня`,
       ],
       ctaLabel: 'Получить премиум',
@@ -300,6 +300,6 @@ export const landingB: LandingContent = {
     href: site.links.payPremium,
     note: `${site.pricing.bonus} за оформление сегодня · гарантия ${site.pricing.guarantee}`,
     image: '/img/splash.jpg',
-    imageBrightness: 0.5,
+    imageBrightness: 1.06,
   },
 };

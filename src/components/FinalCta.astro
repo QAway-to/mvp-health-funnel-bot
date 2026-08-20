@@ -51,9 +51,10 @@ const { finalCta } = Astro.props;
     inset: 0;
     background: linear-gradient(
       88deg,
-      rgba(6, 6, 5, 0.96) 0%,
-      rgba(6, 6, 5, 0.9) 55%,
-      rgba(6, 6, 5, 0.6) 100%
+      rgba(247, 242, 231, 0.97) 0%,
+      rgba(247, 242, 231, 0.94) 55%,
+      rgba(247, 242, 231, 0.86) 78%,
+      rgba(247, 242, 231, 0.6) 100%
     );
   }
 
@@ -90,6 +91,7 @@ const { finalCta } = Astro.props;
 
   .final__note {
     font-size: 17px;
-    color: var(--text-muted);
+    /* Подпись лежит поверх фото — берём более тёмный тон, чем у muted. */
+    color: var(--text-secondary);
   }
 </style>

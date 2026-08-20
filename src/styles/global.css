@@ -4,31 +4,42 @@
  */
 
 :root {
+  /* Светлая бежевая тема. Все пары «текст на фоне» проверены на контраст
+     WCAG AA (>= 4.5:1) — скриптом, а не на глаз. Менять цвета только вместе
+     с перепроверкой контраста. */
+
   /* Фоны */
-  --bg-base: #080807;
-  --bg-alt: #0d0c0a;
-  --card-secondary: #141310;
-  --card-primary: #191713;
+  --bg-base: #f7f2e7;
+  --bg-alt: #efe7d6;
+  --card-secondary: #fcf9f3;
+  --card-primary: #f0e7d5;
 
   /* Текст */
-  --text: #f7f2e7;
-  --text-card: #e4dccb;
-  --text-lead: #cfc7b6;
-  --text-secondary: #bdb4a2;
-  --text-muted: #8c8577;
-  --text-footer: #6e685c;
+  --text: #17150f;
+  --text-card: #2b261c;
+  --text-lead: #463f31;
+  --text-secondary: #57503f;
+  --text-muted: #6b6352;
+  --text-footer: #6f6857;
 
-  /* Акценты */
+  /* Акценты.
+     --accent — только заливка (кнопки, линии, маркеры): на светлом фоне
+     жёлтый как текст даёт контраст ~1.6:1 и читаться не будет.
+     --accent-text — тот же акцент, затемнённый до читаемого. */
   --accent: #e8b23c;
-  --accent-hover: #f5ce77;
-  --accent-problem: #c9603c;
-  --accent-faq: #9e6fb0;
+  --accent-text: #8a5a08;
+  --accent-hover: #6e4706;
+  --accent-problem: #a8441f;
+  --accent-faq: #6b3f80;
   --on-accent: #12100d;
 
   /* Границы */
-  --border-hairline: #1e1b16;
-  --border-soft: #241f18;
-  --border-strong: #3a342a;
+  --border-hairline: #e3d9c4;
+  --border-soft: #d8ccb2;
+  --border-strong: #b6a88d;
+
+  /* Затемнение фотографий под светлый текст поверх них */
+  --photo-scrim: rgba(28, 24, 16, 0.55);
 
   /* Типографика */
   --font-display: 'Onest', system-ui, sans-serif;
@@ -98,7 +109,7 @@ img {
 }
 
 a {
-  color: var(--accent);
+  color: var(--accent-text);
   text-decoration: none;
   transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
 }
@@ -108,7 +119,7 @@ a:hover {
 }
 
 :where(a, button, summary):focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--accent-hover);
   outline-offset: 3px;
 }
 
@@ -159,7 +170,7 @@ p {
   font-weight: 700;
   letter-spacing: 0.28em;
   text-transform: uppercase;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .kicker--problem {
@@ -185,7 +196,7 @@ p {
   font-family: var(--font-display);
   font-size: clamp(20px, 2.4vw, 30px);
   font-weight: 800;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .note {
@@ -193,7 +204,7 @@ p {
   padding-top: 24px;
   font-size: 18px;
   line-height: 1.5;
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 /* Карточка-линия: заголовок под цветной чертой, без фона. */
@@ -263,10 +274,11 @@ p {
   border: 1px solid var(--border-strong);
   color: var(--text-card);
   font-weight: 700;
+  background: transparent;
 }
 
 .btn--ghost:hover {
-  border-color: var(--accent);
+  border-color: var(--accent-hover);
   color: var(--accent-hover);
 }
 

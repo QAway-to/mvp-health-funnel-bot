@@ -6,22 +6,22 @@ import Landing from '../layouts/Landing.astro';
 /**
  * Развилка между двумя лендингами. В хендоффе этой страницы нет —
  * она собрана из тех же токенов и нужна только для прямых заходов на корень.
- * Рекламный трафик ведётся сразу на /bez-boli/ или /sila/.
+ * Рекламный трафик ведётся сразу на /bez-diskomforta/ или /sila/.
  */
 const meta = {
   title: 'Естественная техника бега — онлайн-гайд',
   description:
-    'Два пути к одному гайду: «Бег без боли» — если болят колени, «Бег как сила» — если вы уже тренируетесь и хотите встроить бег в план.',
+    'Два пути к одному гайду: «Бег без дискомфорта» — если колени дают о себе знать, «Бег как сила» — если вы уже тренируетесь и хотите встроить бег в план.',
   ogImage: '/img/silhouettes.jpg',
 };
 
 const options = [
   {
-    href: '/bez-boli/',
+    href: '/bez-diskomforta/',
     image: landingA.hero.image,
     brand: landingA.brand,
-    title: 'Болят колени после пробежки',
-    text: 'Спокойный разбор четырёх привычек, из-за которых появляется боль, и техника, которая их убирает.',
+    title: 'Колени дают о себе знать после пробежки',
+    text: 'Спокойный разбор четырёх привычек, из-за которых появляется дискомфорт, и техника, которая его убирает.',
   },
   {
     href: '/sila/',
@@ -110,7 +110,7 @@ const options = [
   }
 
   .option:hover {
-    border-color: var(--accent);
+    border-color: var(--accent-text);
     color: var(--text);
   }
 
@@ -120,7 +120,7 @@ const options = [
     width: 100%;
     height: 100%;
     object-fit: cover;
-    filter: brightness(0.5);
+    filter: brightness(1.04);
     transition: transform 300ms ease;
   }
 
@@ -131,7 +131,12 @@ const options = [
   .option__scrim {
     position: absolute;
     inset: 0;
-    background: linear-gradient(180deg, rgba(6, 6, 5, 0.35) 0%, rgba(6, 6, 5, 0.94) 72%);
+    background: linear-gradient(
+      180deg,
+      rgba(247, 242, 231, 0) 0%,
+      rgba(247, 242, 231, 0.6) 38%,
+      rgba(247, 242, 231, 0.99) 60%
+    );
   }
 
   .option__body {
@@ -149,7 +154,7 @@ const options = [
     font-weight: 700;
     letter-spacing: 0.2em;
     text-transform: uppercase;
-    color: var(--accent);
+    color: var(--accent-text);
   }
 
   .option__title {
@@ -169,7 +174,7 @@ const options = [
     font-family: var(--font-display);
     font-size: 17px;
     font-weight: 800;
-    color: var(--accent);
+    color: var(--accent-text);
     padding-top: 8px;
   }
 </style>
