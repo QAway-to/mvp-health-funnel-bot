@@ -1,19 +1,19 @@
 ---
-import { parseVideoUrl, youtubeEmbedUrl } from '../lib/video';
+import { parseVideoUrl, tiktokEmbedUrl, youtubeEmbedUrl } from '../lib/video';
 
 /**
  * Плеер демо-урока.
  *
- * YouTube подключается через фасад: до клика на странице лежит только постер
- * и кнопка, а iframe создаётся уже по нажатию. Встроенный сразу, он тянет
- * около 700 КБ скриптов на каждой загрузке страницы и роняет LCP — а у нас
+ * YouTube и TikTok подключаются через фасад: до клика на странице лежит только
+ * постер и кнопка, а iframe создаётся уже по нажатию. Встроенный сразу, он тянет
+ * сотни килобайт скриптов на каждой загрузке страницы и роняет LCP — а у нас
  * бюджет 2.5s.
  *
  * Если ссылки нет, вместо плеера показывается заглушка с указанием, что вписать.
  */
 
 interface Props {
-  /** Значение `site.demo.videoUrl`: ссылка YouTube или путь к файлу. */
+  /** Значение `site.demo.videoUrl`: ссылка YouTube/TikTok или путь к файлу. */
   url: string;
   /** Картинка-превью из `public/`. */
   poster: string;
@@ -24,8 +24,17 @@ interface Props {
 const { url, poster, title } = Astro.props;
 
 const source = parseVideoUrl(url);
-const embedUrl = source.kind === 'youtube' ? youtubeEmbedUrl(source.id, true) : '';
-const vertical = source.kind === 'youtube' && source.vertical;
+
+const embedUrl =
+  source.kind === 'youtube'
+    ? youtubeEmbedUrl(source.id, true)
+    : source.kind === 'tiktok'
+      ? tiktokEmbedUrl(source.id, true)
+      : '';
+
+/** TikTok всегда вертикальный, YouTube — только Shorts. */
+const vertical = source.kind === 'tiktok' || (source.kind === 'youtube' && source.vertical);
+const platform = source.kind;
 ---
 
 <div class:list={['player', vertical && 'player--vertical']}>
@@ -46,8 +55,14 @@ const vertical = source.kind === 'youtube' && source.vertical;
   }
 
   {
-    source.kind === 'youtube' && (
-      <button class="player__facade" type="button" data-video-facade data-embed={embedUrl}>
+    (source.kind === 'youtube' || source.kind === 'tiktok') && (
+      <button
+        class="player__facade"
+        type="button"
+        data-video-facade
+        data-embed={embedUrl}
+        data-platform={platform}
+      >
         <img class="player__poster" src={poster} alt="" aria-hidden="true" loading="lazy" />
         <span class="player__scrim" />
         <span class="player__play" aria-hidden="true" />
@@ -57,11 +72,20 @@ const vertical = source.kind === 'youtube' && source.vertical;
   }
 
   {
+    source.kind === 'unresolvable' && (
+      <div class="player__empty">
+        <img class="player__poster" src={poster} alt="" aria-hidden="true" loading="lazy" />
+        <p class="player__empty-text">{source.reason}</p>
+      </div>
+    )
+  }
+
+  {
     source.kind === 'none' && (
       <div class="player__empty">
         <img class="player__poster" src={poster} alt="" aria-hidden="true" loading="lazy" />
         <p class="player__empty-text">
-          Здесь будет видео урока. Вставьте ссылку с YouTube или путь к файлу в
+          Здесь будет видео урока. Вставьте ссылку с TikTok или YouTube либо путь к файлу в
           <code>src/config/site.ts</code> → <code>demo.videoUrl</code>.
         </p>
       </div>
@@ -78,10 +102,13 @@ const vertical = source.kind === 'youtube' && source.vertical;
     overflow: hidden;
   }
 
-  /* Shorts вертикальные — 16:9 обрезал бы их по бокам. */
+  /* TikTok и Shorts вертикальные — 16:9 обрезал бы их по бокам.
+     Ширина задана явно: `margin-inline: auto` отключает растягивание
+     флекс-элемента, а все дети внутри абсолютные — с одним лишь max-width
+     блок схлопывается в ноль. */
   .player--vertical {
     aspect-ratio: 9 / 16;
-    max-width: 420px;
+    width: min(100%, 420px);
     margin-inline: auto;
   }
 
@@ -211,7 +238,7 @@ const vertical = source.kind === 'youtube' && source.vertical;
       iframe.allowFullscreen = true;
 
       facade.replaceWith(iframe);
-      track('demo_played', { source: 'youtube' });
+      track('demo_played', { source: facade.dataset.platform ?? 'unknown' });
     },
     { once: true },
   );
