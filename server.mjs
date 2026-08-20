@@ -23,15 +23,18 @@ if (!existsSync(ROOT)) {
 
 /** Адреса без слеша и короткие ссылки для рекламы. Значения — как в render.yaml. */
 const REDIRECTS = new Map([
-  ['/bez-diskomforta', '/bez-diskomforta/'],
+  ['/komfort', '/komfort/'],
   ['/sila', '/sila/'],
   ['/start', '/start/'],
   ['/demo', '/demo/'],
-  ['/a', '/bez-diskomforta/'],
+  ['/a', '/komfort/'],
   ['/b', '/sila/'],
-  // Старый слаг: формулировка про боль убрана, но ссылки на неё уже разошлись.
-  ['/bez-boli', '/bez-diskomforta/'],
-  ['/bez-boli/', '/bez-diskomforta/'],
+  // Прежние слаги сегмента: сначала «без боли», потом «без дискомфорта».
+  // Обе формулировки были от отрицания, но ссылки на них уже разошлись.
+  ['/bez-boli', '/komfort/'],
+  ['/bez-boli/', '/komfort/'],
+  ['/bez-diskomforta', '/komfort/'],
+  ['/bez-diskomforta/', '/komfort/'],
 ]);
 
 /** Хешированные ассеты и картинки кэшируются навсегда, HTML — никогда. */

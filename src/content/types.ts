@@ -16,9 +16,6 @@ export interface Hero {
   readonly kicker: string;
   readonly title: string;
   readonly lead: string;
-  /** Ширина заголовка в символах — из макета (18ch / 20ch). */
-  readonly titleWidth: string;
-  readonly leadWidth: string;
   readonly image: string;
   /** Затемнение фонового фото, если в макете задан filter: brightness(). */
   readonly imageBrightness?: number;

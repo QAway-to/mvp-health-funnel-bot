@@ -57,10 +57,10 @@ services:
       # чтобы не зависеть от того, как хостинг разбирает каталоги.
       - type: redirect
         source: /bez-boli
-        destination: /bez-diskomforta/
+        destination: /komfort/
       - type: redirect
-        source: /bez-diskomforta
-        destination: /bez-diskomforta/
+        source: /komfort
+        destination: /komfort/
       - type: redirect
         source: /sila
         destination: /sila/
@@ -68,7 +68,7 @@ services:
       # Короткие ссылки для рекламных кампаний.
       - type: redirect
         source: /a
-        destination: /bez-diskomforta/
+        destination: /komfort/
       - type: redirect
         source: /b
         destination: /sila/

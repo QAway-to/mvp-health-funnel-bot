@@ -29,8 +29,8 @@ const { hero } = Astro.props;
 
   <div class="hero__inner container">
     <p class="kicker">{hero.kicker}</p>
-    <h1 class="hero__title" style={`max-width: ${hero.titleWidth}`}>{hero.title}</h1>
-    <p class="hero__lead" style={`max-width: ${hero.leadWidth}`}>{hero.lead}</p>
+    <h1 class="hero__title">{hero.title}</h1>
+    <p class="hero__lead">{hero.lead}</p>
 
     <div class="hero__actions">
       <Cta kind="primary" href={routes.start} placement="hero">{ctaLabels.free}</Cta>
@@ -82,9 +82,11 @@ const { hero } = Astro.props;
 
   .hero__title {
     font-family: var(--font-display);
-    font-size: clamp(40px, 7vw, 84px);
+    /* 60px — предел, при котором заголовок героя ещё держится в одну строку
+       на 1440px. Подобрано замером, не на глаз. */
+    font-size: clamp(36px, 5.6vw, 60px);
     font-weight: 800;
-    line-height: 0.98;
+    line-height: 1.02;
     letter-spacing: -0.03em;
   }
 
@@ -92,6 +94,8 @@ const { hero } = Astro.props;
     font-size: clamp(18px, 2.2vw, 26px);
     line-height: 1.45;
     color: var(--text-lead);
+    /* Мера для читаемости абзаца — в отличие от заголовка, его резать нужно. */
+    max-width: 54ch;
   }
 
   .hero__actions {
