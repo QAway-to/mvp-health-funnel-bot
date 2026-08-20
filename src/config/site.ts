@@ -67,7 +67,7 @@ export const site = {
      * Что именно вставлено, определяет src/lib/video.ts.
      * Пусто — вместо плеера заглушка с подсказкой.
      */
-    videoUrl: '',
+    videoUrl: 'https://www.tiktok.com/@bogdan88899/video/7653562675468717333',
     /** Постер для плеера, лежит в public/. */
     poster: '/img/barefoot-step.jpg',
     title: '{НАЗВАНИЕ_ДЕМО_УРОКА}',
