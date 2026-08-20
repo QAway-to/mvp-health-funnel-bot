@@ -49,7 +49,7 @@ export const site = {
   lead: {
     destination: 'telegram_bot' as LeadDestination,
     /** Ссылка на бота. Можно с deep-link параметром: https://t.me/bot?start=site */
-    telegramUrl: '{ССЫЛКА_ТГ_БОТ}',
+    telegramUrl: 'https://t.me/test_notify35_bot',
     /** Что человек получает бесплатно — обещание должно быть конкретным. */
     promise: '7-дневный старт: 5 минут в день, PDF и 3 коротких видео',
     /** Скидка на платный гайд в первые сутки после заявки. */
