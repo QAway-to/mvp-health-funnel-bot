@@ -6,12 +6,12 @@
  * дают читаемую пару без пересказа.
  *
  * `segment` определяет, где отзыв показывается:
- *   'pain'  — только на /komfort/ (про комфорт в коленях)
- *   'gym'   — только на /sila/ (про выносливость и форму)
+ *   'comfort' — только на /komfort/ (про лёгкость бега)
+ *   'strength' — только на /sila/ (про выносливость и силу)
  *   'both'  — везде, включая главную
  */
 
-export type TestimonialSegment = 'pain' | 'gym' | 'both';
+export type TestimonialSegment = 'comfort' | 'strength' | 'both';
 
 export interface Testimonial {
   readonly name: string;
@@ -32,7 +32,7 @@ export const testimonials: readonly Testimonial[] = [
   //   before: 'Что было до: что мешало, что не получалось.',
   //   after: 'Что стало: через сколько и что именно изменилось.',
   //   photo: '/img/testimonials/imya.jpg',
-  //   segment: 'pain',
+  //   segment: 'comfort',
   // },
 ];
 

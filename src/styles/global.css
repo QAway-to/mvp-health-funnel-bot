@@ -135,7 +135,8 @@ p {
 h1,
 h2,
 h3,
-.h2 {
+.h2,
+.rule-card__title {
   text-wrap: balance;
 }
 
