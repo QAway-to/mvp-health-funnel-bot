@@ -1,5 +1,6 @@
 ---
-import { site, routes } from '../config/site';
+import { site } from '../config/site';
+import { startUrl } from '../lib/leadLink';
 
 /**
  * Закреплённая панель внизу экрана — только на мобильном.
@@ -12,13 +13,15 @@ import { site, routes } from '../config/site';
 interface Props {
   /** Ссылка на оплату. Обычно премиум-тариф. */
   checkoutHref: string;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
 }
 
-const { checkoutHref } = Astro.props;
+const { checkoutHref, segment } = Astro.props;
 ---
 
 <div class="sticky" data-sticky-cta hidden>
-  <a class="sticky__btn sticky__btn--free" href={routes.start} data-cta="sticky_free" data-cta-kind="primary">
+  <a class="sticky__btn sticky__btn--free" href={startUrl(segment)} data-cta="sticky_free" data-cta-kind="primary">
     Первый шаг бесплатно
   </a>
 

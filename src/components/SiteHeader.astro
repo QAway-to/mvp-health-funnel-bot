@@ -1,6 +1,7 @@
 ---
 import Cta from './Cta.astro';
 import { routes } from '../config/site';
+import { startUrl } from '../lib/leadLink';
 import type { NavLink } from '../content/types';
 
 /**
@@ -14,9 +15,11 @@ interface Props {
   nav: readonly NavLink[];
   /** На самой странице /start/ кнопка вела бы на неё же — прячем. */
   showCta?: boolean;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
 }
 
-const { brand, brandHref = routes.home, nav, showCta = true } = Astro.props;
+const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.props;
 ---
 
 <header class="header">
@@ -29,7 +32,7 @@ const { brand, brandHref = routes.home, nav, showCta = true } = Astro.props;
 
     {
       showCta && (
-        <Cta kind="primary" href={routes.start} placement="header" size="sm" class="header__cta">
+        <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
           Первый шаг бесплатно
         </Cta>
       )

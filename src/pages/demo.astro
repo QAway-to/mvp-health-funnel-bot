@@ -6,6 +6,7 @@ import VideoPlayer from '../components/VideoPlayer.astro';
 import { site, routes } from '../config/site';
 import { landingA } from '../content/landing-a';
 import { standaloneNav } from '../content/nav';
+import { startUrl } from '../lib/leadLink';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -29,7 +30,7 @@ const { mechanism } = landingA;
 ---
 
 <Landing meta={meta} path={routes.demo}>
-  <SiteHeader brand="Комфортный бег" nav={standaloneNav} />
+  <SiteHeader brand="Комфортный бег" nav={standaloneNav} segment="demo" />
 
   <main>
     <section class="section section--alt" data-section="demo">
@@ -75,7 +76,7 @@ const { mechanism } = landingA;
         </p>
 
         <div class="demo__actions">
-          <Cta kind="primary" href={routes.start} placement="demo_free">
+          <Cta kind="primary" href={startUrl('demo')} placement="demo_free">
             Забрать первый шаг бесплатно
           </Cta>
           <Cta kind="sales" href={site.links.payPremium} placement="demo_sales">

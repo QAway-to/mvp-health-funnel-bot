@@ -2,6 +2,7 @@
 import Cta from './Cta.astro';
 import { routes } from '../config/site';
 import { ctaLabels } from '../content/cta';
+import { startUrl } from '../lib/leadLink';
 import type { Hero } from '../content/types';
 
 /**
@@ -11,9 +12,11 @@ import type { Hero } from '../content/types';
 
 interface Props {
   hero: Hero;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
 }
 
-const { hero } = Astro.props;
+const { hero, segment } = Astro.props;
 ---
 
 <section class="hero" data-section="hero">
@@ -33,7 +36,7 @@ const { hero } = Astro.props;
     <p class="hero__lead">{hero.lead}</p>
 
     <div class="hero__actions">
-      <Cta kind="primary" href={routes.start} placement="hero">{ctaLabels.free}</Cta>
+      <Cta kind="primary" href={startUrl(segment)} placement="hero">{ctaLabels.free}</Cta>
       <Cta kind="secondary" href={routes.demo} placement="hero_demo">{ctaLabels.demo}</Cta>
     </div>
 

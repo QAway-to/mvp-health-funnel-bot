@@ -5,6 +5,7 @@ import SiteHeader from '../components/SiteHeader.astro';
 import { site, routes } from '../config/site';
 import { home } from '../content/home';
 import { standaloneNav } from '../content/nav';
+import { botUrl } from '../lib/leadLink';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -23,6 +24,13 @@ const meta = {
 
 const { leadMagnet } = home;
 const hasBot = !site.lead.telegramUrl.startsWith('{');
+/**
+ * Ссылка на бота с меткой источника. Здесь стоит метка по умолчанию: страницу
+ * открывают и напрямую. Если человек пришёл с продуктового лендинга, адрес
+ * несёт `?s=<сегмент>`, и скрипт внизу подменяет метку на его собственную —
+ * до клика, так что в бота уезжает именно она.
+ */
+const botLink = botUrl(site.lead.telegramUrl);
 ---
 
 <Landing meta={meta} path={routes.start}>
@@ -41,7 +49,7 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
       <div class="start__action">
         {
           hasBot ? (
-            <Cta kind="primary" href={site.lead.telegramUrl} placement="start_page">
+            <Cta kind="primary" href={botLink} placement="start_page">
               Забрать в Telegram
             </Cta>
           ) : (
@@ -64,6 +72,27 @@ const hasBot = !site.lead.telegramUrl.startsWith('{');
 
   <SiteFooter />
 </Landing>
+
+<script>
+  import { botUrl } from '../lib/leadLink';
+
+  /**
+   * Переносим сегмент из адреса страницы в deep link бота.
+   *
+   * Страница статическая и раздаётся всем одна и та же, поэтому сегмент
+   * известен только в браузере. Подмена происходит сразу при загрузке, а не по
+   * клику: клик по ссылке в Telegram может обработаться раньше обработчика.
+   *
+   * Значение проверяется по закрытому списку внутри `botUrl` — в чужой домен
+   * не должно уехать ничего, чего мы сами не заводили.
+   */
+  const link = document.querySelector<HTMLAnchorElement>('a[data-cta="start_page"]');
+  const segment = new URLSearchParams(window.location.search).get('s');
+
+  if (link && segment) {
+    link.href = botUrl(link.href, segment);
+  }
+</script>
 
 <style>
   .start {

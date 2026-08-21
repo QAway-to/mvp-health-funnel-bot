@@ -29,10 +29,10 @@ let toneIndex = 0;
 const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
 ---
 
-<SiteHeader brand={content.brand} nav={content.nav} />
+<SiteHeader brand={content.brand} nav={content.nav} segment={content.slug} />
 
 <main>
-  <Hero hero={content.hero} />
+  <Hero hero={content.hero} segment={content.slug} />
   <Mirror mirror={content.mirror} tone={nextTone()} />
   <Reasons reasons={content.reasons} tone={nextTone()} />
   <Mechanism mechanism={content.mechanism} tone={nextTone()} />
@@ -45,6 +45,6 @@ const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
   <FinalCta finalCta={content.finalCta} />
 </main>
 
-<StickyCta checkoutHref={content.pricing.premium.href} />
+<StickyCta checkoutHref={content.pricing.premium.href} segment={content.slug} />
 
 <SiteFooter />
