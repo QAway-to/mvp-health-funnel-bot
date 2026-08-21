@@ -61,7 +61,6 @@ const { pricing, tone } = Astro.props;
     </div>
 
     <div class="pricing__terms">
-      <p class="pricing__guarantee">{pricing.guarantee}</p>
       <p class="pricing__payment">{pricing.payment}</p>
     </div>
   </div>
@@ -196,10 +195,6 @@ const { pricing, tone } = Astro.props;
     gap: 32px;
     flex-wrap: wrap;
     font-size: 17px;
-  }
-
-  .pricing__guarantee {
-    color: var(--accent-text);
   }
 
   .pricing__payment {

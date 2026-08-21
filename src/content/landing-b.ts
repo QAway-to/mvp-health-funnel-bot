@@ -24,7 +24,6 @@ export const landingB: LandingContent = {
     imageBrightness: 1.04,
     trust: [
       'Цель к 21-му дню: 5 км легко, и наутро ноги свежие',
-      `Гарантия · ${site.pricing.guarantee}`,
     ],
   },
 
@@ -251,7 +250,6 @@ export const landingB: LandingContent = {
       ctaLabel: 'Получить премиум',
       href: site.links.payPremium,
     },
-    guarantee: `Гарантия: ${site.pricing.guarantee} — возврат без объяснений.`,
     payment: `Оплата: ${site.pricing.paymentMethods}`,
   },
 
@@ -286,7 +284,7 @@ export const landingB: LandingContent = {
       },
       {
         question: '«Дорого»',
-        answer: `${site.pricing.premium} — это ${site.pricing.comparison}, плюс гарантия ${site.pricing.guarantee}. Дороже обходится ещё один год, брошенный на второй неделе.`,
+        answer: `${site.pricing.premium} — это ${site.pricing.comparison}. Дороже обходится ещё один год, брошенный на второй неделе.`,
       },
     ],
   },
@@ -296,7 +294,7 @@ export const landingB: LandingContent = {
     lead: 'Десять минут спокойно, шаг под тело, без секундомера — можно сегодня вечером. Весь порядок на 21 день — в гайде.',
     ctaLabel: `Получить доступ — ${site.pricing.premium}`,
     href: site.links.payPremium,
-    note: `${site.pricing.bonus} за оформление сегодня · гарантия ${site.pricing.guarantee}`,
+    note: `${site.pricing.bonus} за оформление сегодня`,
     image: '/img/splash.jpg',
     imageBrightness: 1.06,
   },

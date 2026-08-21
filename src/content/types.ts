@@ -125,7 +125,6 @@ export interface Pricing {
   readonly base: PricingPlan;
   readonly premium: PricingPlan;
   readonly badge: string;
-  readonly guarantee: string;
   readonly payment: string;
 }
 

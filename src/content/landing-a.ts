@@ -21,10 +21,7 @@ export const landingA: LandingContent = {
     title: 'Комфортный бег начинается с техники',
     lead: 'Комфорт складывается из четырёх привычек: маршрута, приземления, обуви и объёма. Все четыре ставятся техникой — без зала, снаряжения и километров через силу.',
     image: '/img/silhouettes.jpg',
-    trust: [
-      `Гарантия возврата · ${site.pricing.guarantee}`,
-      `Автор — ${site.author.name}`,
-    ],
+    trust: [`Автор — ${site.author.name}`],
   },
 
   mirror: {
@@ -226,7 +223,6 @@ export const landingA: LandingContent = {
       ctaLabel: 'Получить премиум',
       href: site.links.payPremium,
     },
-    guarantee: `Гарантия: ${site.pricing.guarantee} — возврат без объяснений.`,
     payment: `Оплата: ${site.pricing.paymentMethods}`,
   },
 
@@ -256,7 +252,7 @@ export const landingA: LandingContent = {
       },
       {
         question: '«Дорого»',
-        answer: `${site.pricing.premium} — это ${site.pricing.comparison}. Плюс гарантия ${site.pricing.guarantee}. Дороже обходится ещё один год, начатый и брошенный на второй неделе.`,
+        answer: `${site.pricing.premium} — это ${site.pricing.comparison}. Дороже обходится ещё один год, начатый и брошенный на второй неделе.`,
       },
     ],
   },
@@ -266,7 +262,7 @@ export const landingA: LandingContent = {
     lead: 'Пять минут босиком по траве — бесплатно и без меня. Весь путь по порядку, с дозировками и разбором — в гайде.',
     ctaLabel: `Получить доступ — ${site.pricing.premium}`,
     href: site.links.payPremium,
-    note: `${site.pricing.bonus} за оформление сегодня · гарантия ${site.pricing.guarantee}`,
+    note: `${site.pricing.bonus} за оформление сегодня`,
     image: '/img/highfive.jpg',
     imageBrightness: 1.06,
   },
