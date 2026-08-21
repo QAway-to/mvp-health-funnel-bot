@@ -15,7 +15,7 @@ export const site = {
 
   /** Автор продукта. */
   author: {
-    name: '{ИМЯ_СПИКЕРА}',
+    name: 'Богдан Боровский',
     yearsOfPractice: '{N}',
     studentsCount: '{N}',
     story:
@@ -90,8 +90,8 @@ export const site = {
 
   /** Футер. */
   legal: {
-    year: '{ГОД}',
-    entity: '{ЮРИДИЧЕСКИЕ_ДАННЫЕ}',
+    year: '2026',
+    entity: 'Все права защищены',
   },
 } as const;
 
