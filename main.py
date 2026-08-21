@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 from bot import telegram_bot
 from config import config
+from utils.funnel_store import store
 from utils.logger import get_recent_logs, log_agent_action
 
 
@@ -46,6 +47,10 @@ async def debug_info():
         "mode": "webhook" if telegram_bot.webhook_url else "polling",
         "channel_configured": bool(config.CONTENT_CHANNEL_ID),
         "payments_enabled": config.PAYMENTS_ENABLED,
+        # Какое хранилище реально поднялось. Проверять по переменной окружения
+        # бесполезно: она задана, а база могла и не ответить.
+        "store": getattr(store, "backend_name", "unknown"),
+        "followups_scheduled": bool(config.TASKS_SECRET),
         "logs": get_recent_logs(),
     }
 

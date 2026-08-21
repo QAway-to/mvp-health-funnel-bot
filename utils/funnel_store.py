@@ -152,7 +152,20 @@ class Store(Protocol):
     async def event(self, chat_id: str, name: str, **payload: Any) -> None: ...
 
 
-class SheetsStore:
+class CachedStore:
+    """Кеш в памяти плюс фоновая выгрузка — общая механика всех хранилищ.
+
+    Читает всегда кеш: разговор в чате не должен ждать сетевого round-trip.
+    Записи копятся и уезжают пачкой раз в `_FLUSH_INTERVAL` — кроме оплат, они
+    пишутся немедленно и умеют сообщить о неудаче.
+
+    Бэкенд подключается четырьмя методами внизу класса. Всё, что выше, для
+    Google Sheets и Postgres одинаково, и дублировать это в двух местах —
+    верный способ починить гонку только в одном из них.
+    """
+
+    backend_name = "store"
+
     def __init__(self) -> None:
         self._users: dict[str, UserState] = {}
         self._dirty: set[str] = set()
@@ -162,36 +175,31 @@ class SheetsStore:
         self._loaded = False
 
     async def start(self) -> None:
-        """Warm the cache from Sheets, then run the background flusher."""
-        if not sheets_api.is_configured():
+        """Warm the cache from the backend, then run the background flusher."""
+        rows = await self._load()
+        if rows is None:
             log_agent_action(
-                "Funnel", "SHEETS_SCRIPT_URL not set — state is in-memory only", level="WARNING"
+                "Funnel",
+                f"Could not load users from {self.backend_name} — starting cold, "
+                "existing rows stay untouched",
+                level="WARNING",
             )
         else:
-            rows = await sheets_api.call("users_all")
-            if isinstance(rows, list):
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    state = UserState.from_row(row)
-                    # Загрузка идёт фоном, пока бот уже отвечает: то, что успели
-                    # накопить в памяти, свежее прочитанного из таблицы.
-                    if state and state.chat_id not in self._users:
-                        self._users[state.chat_id] = state
-                self._loaded = True
-                log_agent_action("Funnel", f"Loaded {len(self._users)} users from Sheets")
-            else:
-                log_agent_action(
-                    "Funnel",
-                    "Could not load users — starting cold, existing rows stay untouched",
-                    level="WARNING",
-                )
+            for state in rows:
+                # Загрузка идёт фоном, пока бот уже отвечает: то, что успели
+                # накопить в памяти, свежее прочитанного из хранилища.
+                if state.chat_id not in self._users:
+                    self._users[state.chat_id] = state
+            self._loaded = True
+            log_agent_action(
+                "Funnel", f"Loaded {len(self._users)} users from {self.backend_name}"
+            )
 
         self._replay_journal()
         self._flusher = asyncio.create_task(self._flush_loop())
 
     def _replay_journal(self) -> None:
-        """Re-apply premium grants that may never have reached Sheets."""
+        """Re-apply premium grants that may never have reached the backend."""
         recovered = 0
         for chat_id in _read_journal():
             state = self._users.get(chat_id) or UserState(
@@ -217,7 +225,7 @@ class SheetsStore:
                 pass
             self._flusher = None
         await self._flush_once()
-        await sheets_api.close()
+        await self._close()
 
     def user(self, chat_id: str, *, source: str = "") -> UserState:
         """Return cached state, creating (and queueing) a new row on first sight."""
@@ -247,11 +255,10 @@ class SheetsStore:
         so callers holding money-critical data can escalate."""
         self._users[state.chat_id] = state
         if immediate:
-            ok = await sheets_api.call("user_upsert", {"user": state.to_row()})
-            if ok is None:
-                self._dirty.add(state.chat_id)  # retry in the background
-                return False
-            return True
+            if await self._write_user(state):
+                return True
+            self._dirty.add(state.chat_id)  # retry in the background
+            return False
         self._dirty.add(state.chat_id)
         return True
 
@@ -275,7 +282,7 @@ class SheetsStore:
         # is safe only because those paths never await between read and write.
         # Anything added here that yields must take the lock.
         async with self._lock:
-            users = [self._users[cid].to_row() for cid in self._dirty if cid in self._users]
+            users = [self._users[cid] for cid in self._dirty if cid in self._users]
             pending_ids = set(self._dirty)
             events = list(self._events)
 
@@ -287,7 +294,7 @@ class SheetsStore:
 
         delivered = False
         try:
-            delivered = await sheets_api.call("flush", {"users": users, "events": events}) is not None
+            delivered = await self._write(users, events)
         finally:
             # Cancellation (shutdown mid-flush) must not swallow the batch:
             # without this the cleared state would simply be gone.
@@ -307,6 +314,57 @@ class SheetsStore:
             events = events[-headroom:] if headroom > 0 else []
         self._events.extendleft(reversed(events))
 
+    # --- то, что зависит от бэкенда -----------------------------------------
+
+    async def _load(self) -> list[UserState] | None:
+        """Все известные пользователи. None — хранилище недоступно."""
+        raise NotImplementedError
+
+    async def _write(self, users: list[UserState], events: list[dict[str, Any]]) -> bool:
+        """Записать пачку. False — не доставлено, батч вернётся в очередь."""
+        raise NotImplementedError
+
+    async def _write_user(self, state: UserState) -> bool:
+        """Записать одного пользователя немедленно — это путь оплат."""
+        raise NotImplementedError
+
+    async def _close(self) -> None:
+        """Закрыть соединения."""
+
+
+class SheetsStore(CachedStore):
+    """Google Sheets через Apps Script.
+
+    Заказчику показать проще всего, но таблица — не база: ни запросов, ни
+    индексов, ни истории событий дальше буфера в памяти.
+    """
+
+    backend_name = "Sheets"
+
+    async def _load(self) -> list[UserState] | None:
+        if not sheets_api.is_configured():
+            log_agent_action(
+                "Funnel", "SHEETS_SCRIPT_URL not set — state is in-memory only", level="WARNING"
+            )
+            return []
+
+        rows = await sheets_api.call("users_all")
+        if not isinstance(rows, list):
+            return None
+
+        loaded = (UserState.from_row(row) for row in rows if isinstance(row, dict))
+        return [state for state in loaded if state]
+
+    async def _write(self, users: list[UserState], events: list[dict[str, Any]]) -> bool:
+        payload = {"users": [state.to_row() for state in users], "events": events}
+        return await sheets_api.call("flush", payload) is not None
+
+    async def _write_user(self, state: UserState) -> bool:
+        return await sheets_api.call("user_upsert", {"user": state.to_row()}) is not None
+
+    async def _close(self) -> None:
+        await sheets_api.close()
+
 
 def now_iso() -> str:
     """Метка времени в том виде, в каком её понимают таблица и `parse_ts`."""
@@ -316,4 +374,17 @@ def now_iso() -> str:
 _now = now_iso
 
 
-store: Store = SheetsStore()
+def _build_store() -> Store:
+    """Postgres, если задан DATABASE_URL, иначе таблица.
+
+    Выбор по наличию адреса, а не по отдельному флагу: два переключателя рано
+    или поздно разъедутся, и бот начнёт писать не туда, куда смотрят.
+    """
+    if os.getenv("DATABASE_URL"):
+        from utils.pg_store import PostgresStore
+
+        return PostgresStore()
+    return SheetsStore()
+
+
+store: Store = _build_store()

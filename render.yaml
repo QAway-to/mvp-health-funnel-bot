@@ -29,6 +29,9 @@ services:
         sync: false
       - key: TASKS_SECRET
         sync: false
+      # Задан — состояние воронки живёт в Postgres, пусто — в Google Sheets.
+      - key: DATABASE_URL
+        sync: false
 
   # Будильник для догоняющих сообщений. Планировщик внутри веб-сервиса не
   # годится: контейнер на free-плане засыпает, и его таймер вместе с ним.
