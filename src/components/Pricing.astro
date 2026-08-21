@@ -16,48 +16,40 @@ const { pricing, tone } = Astro.props;
     <h2 class="h2 pricing__title">{pricing.title}</h2>
 
     <div class="pricing__grid">
-      <article class="plan-card plan-card--base">
-        <p class="plan-card__label">{pricing.base.label}</p>
-        <p class="plan-card__price">{pricing.base.price}</p>
-        <p class="plan-card__text">{pricing.base.text}</p>
+      {
+        pricing.plans.map((plan) => {
+          /* Рекомендуемый тариф — тот, у которого есть метка. Он же единственный
+             с яркой кнопкой: если выделены все, не выделен никто. */
+          const featured = Boolean(plan.badge);
+          return (
+            <article class:list={['plan-card', featured ? 'plan-card--featured' : 'plan-card--plain']}>
+              {plan.badge && <p class="plan-card__badge">{plan.badge}</p>}
+              <p class:list={['plan-card__label', featured && 'plan-card__label--accent']}>{plan.label}</p>
+              <p class:list={['plan-card__price', featured && 'plan-card__price--accent']}>{plan.price}</p>
+              <p class:list={['plan-card__text', featured && 'plan-card__text--bright']}>{plan.text}</p>
 
-        <ul class="plan-card__features">
-          {
-            pricing.base.features.map((feature) => (
-              <li class="plan-card__feature">
-                <span class="plan-card__marker" aria-hidden="true" />
-                <span>{feature}</span>
-              </li>
-            ))
-          }
-        </ul>
+              <ul class="plan-card__features">
+                {plan.features.map((feature) => (
+                  <li class="plan-card__feature">
+                    <span class:list={['plan-card__marker', featured && 'plan-card__marker--accent']} aria-hidden="true" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
 
-        <Cta kind="sales" href={pricing.base.href} placement="price_base" size="md" class="plan-card__cta plan-card__cta--outline">
-          {pricing.base.ctaLabel}
-        </Cta>
-      </article>
-
-      <article class="plan-card plan-card--premium">
-        <p class="plan-card__badge">{pricing.badge}</p>
-        <p class="plan-card__label plan-card__label--accent">{pricing.premium.label}</p>
-        <p class="plan-card__price plan-card__price--accent">{pricing.premium.price}</p>
-        <p class="plan-card__text plan-card__text--bright">{pricing.premium.text}</p>
-
-        <ul class="plan-card__features">
-          {
-            pricing.premium.features.map((feature) => (
-              <li class="plan-card__feature">
-                <span class="plan-card__marker plan-card__marker--accent" aria-hidden="true" />
-                <span>{feature}</span>
-              </li>
-            ))
-          }
-        </ul>
-
-        <Cta kind="sales" href={pricing.premium.href} placement="price_premium" size="md" class="plan-card__cta">
-          {pricing.premium.ctaLabel}
-        </Cta>
-      </article>
+              <Cta
+                kind="sales"
+                href={plan.href}
+                placement={`price_${plan.id}`}
+                size="md"
+                class:list={['plan-card__cta', !featured && 'plan-card__cta--outline']}
+              >
+                {plan.ctaLabel}
+              </Cta>
+            </article>
+          );
+        })
+      }
     </div>
 
     <div class="pricing__terms">
@@ -67,10 +59,14 @@ const { pricing, tone } = Astro.props;
 </section>
 
 <style>
-    .pricing__grid {
+  /* Три тарифа: на десктопе в ряд, на планшете — сколько влезет по 280px,
+     на телефоне в столбец. auto-fit сам разложит, отдельных брейкпоинтов
+     под каждое число карточек не нужно. */
+  .pricing__grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-    gap: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    align-items: start;
   }
 
   .plan-card {
@@ -81,12 +77,12 @@ const { pricing, tone } = Astro.props;
     position: relative;
   }
 
-  .plan-card--base {
+  .plan-card--plain {
     background: var(--card-secondary);
     border: 1px solid var(--border-soft);
   }
 
-  .plan-card--premium {
+  .plan-card--featured {
     background: var(--card-primary);
     border: 1px solid var(--accent);
   }

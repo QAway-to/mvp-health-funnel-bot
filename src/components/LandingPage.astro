@@ -27,6 +27,16 @@ const { content } = Astro.props;
  */
 let toneIndex = 0;
 const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
+
+/**
+ * Куда ведёт продажная кнопка мобильной панели — на рекомендуемый тариф.
+ * Он помечен `badge`; если метки нет, берём последний, но не молча.
+ */
+const featured = content.pricing.plans.find((plan) => plan.badge);
+if (!featured) {
+  console.warn(`[${content.slug}] ни один тариф не помечен badge — панель ведёт на последний`);
+}
+const checkoutHref = (featured ?? content.pricing.plans.at(-1))?.href ?? '#price';
 ---
 
 <SiteHeader brand={content.brand} nav={content.nav} segment={content.slug} />
@@ -45,6 +55,6 @@ const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
   <FinalCta finalCta={content.finalCta} />
 </main>
 
-<StickyCta checkoutHref={content.pricing.premium.href} segment={content.slug} />
+<StickyCta checkoutHref={checkoutHref} segment={content.slug} />
 
 <SiteFooter />

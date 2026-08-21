@@ -111,20 +111,27 @@ export interface Author {
 }
 
 export interface PricingPlan {
+  /** Стабильный ключ для аналитики: попадёт в `placement` кнопки. */
+  readonly id: string;
   readonly label: string;
   readonly price: string;
   readonly text: string;
   readonly features: readonly string[];
   readonly ctaLabel: string;
   readonly href: string;
+  /**
+   * Метка над карточкой («РЕКОМЕНДУЮ»). Она же помечает тариф как основной:
+   * его цену показывает мобильная панель и подставляют сквозные подписи кнопок.
+   * Ставится ровно одному тарифу — два «рекомендую» не рекомендуют ничего.
+   */
+  readonly badge?: string;
 }
 
 export interface Pricing {
   readonly kicker: string;
   readonly title: string;
-  readonly base: PricingPlan;
-  readonly premium: PricingPlan;
-  readonly badge: string;
+  /** По возрастанию цены: читают слева направо. */
+  readonly plans: readonly PricingPlan[];
   readonly payment: string;
 }
 
