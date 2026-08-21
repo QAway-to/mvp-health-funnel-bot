@@ -27,3 +27,21 @@ services:
         sync: false
       - key: SHEETS_SECRET
         sync: false
+      - key: TASKS_SECRET
+        sync: false
+
+  # Будильник для догоняющих сообщений. Планировщик внутри веб-сервиса не
+  # годится: контейнер на free-плане засыпает, и его таймер вместе с ним.
+  # Раз в час достаточно — самый ранний шаг цепочки ждёт час тишины.
+  - type: cron
+    name: health-funnel-followups
+    runtime: docker
+    plan: free
+    schedule: "0 * * * *"
+    dockerCommand: >-
+      sh -c 'curl -fsS -X POST -H "X-Tasks-Secret: $TASKS_SECRET" "$BOT_URL/tasks/followups"'
+    envVars:
+      - key: TASKS_SECRET
+        sync: false
+      - key: BOT_URL
+        sync: false

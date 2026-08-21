@@ -66,6 +66,42 @@ def _read(name: str) -> str:
     return _strip_comments(_read_raw(name))
 
 
+# Кнопка в тексте промпта: строка вида "@offer Что входит и сколько стоит".
+# Так подписи правит тот, кто пишет тексты, а не тот, кто читает Python.
+_BUTTON_RE = re.compile(r"^@(offer|gift)\s+(.+?)\s*$")
+
+BUTTON_ACTIONS = ("offer", "gift")
+
+
+@dataclass(frozen=True)
+class CtaButton:
+    """Кнопка под сообщением. `action` совпадает с callback_data в боте."""
+
+    action: str
+    label: str
+
+
+def split_buttons(text: str) -> tuple[str, tuple[CtaButton, ...]]:
+    """Разделить текст промпта на сообщение и кнопки под ним.
+
+    Строки с @ вынимаются из текста целиком: иначе разметка кнопок уехала бы
+    в сообщение и человек прочитал бы её как часть письма.
+    """
+    body: list[str] = []
+    buttons: list[CtaButton] = []
+    for line in text.splitlines():
+        match = _BUTTON_RE.match(line.strip())
+        if match:
+            buttons.append(CtaButton(action=match.group(1), label=match.group(2)))
+        else:
+            body.append(line)
+    return "\n".join(body).strip(), tuple(buttons)
+
+
+# Подпись кнопки по умолчанию — на случай, если в offer_cta.txt их не описали.
+DEFAULT_CTA_BUTTON = CtaButton("offer", "🔗 Что входит и сколько стоит")
+
+
 @dataclass(frozen=True)
 class Offer:
     product_card: str
@@ -73,6 +109,7 @@ class Offer:
     cta_text: str
     purchase_url: str
     blockers: tuple[str, ...]
+    cta_buttons: tuple[CtaButton, ...] = (DEFAULT_CTA_BUTTON,)
     is_demo: bool = False
 
     @property
@@ -115,7 +152,7 @@ def load_offer(purchase_url: str | None) -> Offer:
     product_raw = _read_raw("product.txt")
     product = _strip_comments(product_raw)
     sales = _read("sales_block.txt")
-    cta = _read("offer_cta.txt")
+    cta, cta_buttons = split_buttons(_read("offer_cta.txt"))
     is_demo = DEMO_MARKER in product_raw
 
     blockers: list[str] = []
@@ -141,6 +178,7 @@ def load_offer(purchase_url: str | None) -> Offer:
         cta_text=cta or "Хочешь разобрать это системно?",
         purchase_url=purchase_url or "",
         blockers=tuple(blockers),
+        cta_buttons=cta_buttons or (DEFAULT_CTA_BUTTON,),
         is_demo=is_demo,
     )
 

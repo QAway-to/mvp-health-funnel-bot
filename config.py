@@ -35,6 +35,9 @@ class Config:
 
     # --- Воронка ---
     FUNNEL_CTA_AT: int = int(os.getenv("FUNNEL_CTA_AT", "5"))
+    # Ключ для служебного маршрута рассылки. Пока не задан, маршрут выключен:
+    # открытая точка запуска позволила бы кому угодно слать письма нашей базе.
+    TASKS_SECRET: Optional[str] = os.getenv("TASKS_SECRET")
     PURCHASE_URL: Optional[str] = os.getenv("PURCHASE_URL")
     PAYMENTS_ENABLED: bool = _flag("PAYMENTS_ENABLED")
     STARS_PRICE: int = int(os.getenv("STARS_PRICE", "1000"))

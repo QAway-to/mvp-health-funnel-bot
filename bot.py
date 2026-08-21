@@ -1,19 +1,21 @@
 import asyncio
 import hashlib
+from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import replace
 from typing import Any
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, PreCheckoutQueryHandler, filters
-from telegram.error import TelegramError
+from telegram.error import Forbidden, TelegramError
 
 from config import config
 from utils.logger import log_agent_action
 from utils.llm import chat_completion
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
-from utils.funnel_store import UserState, journal_premium, store
-from utils.offer import load_offer
+from utils.followups import is_quiet_hour, load_followups, next_step
+from utils.funnel_store import UserState, journal_premium, now_iso, store
+from utils.offer import CtaButton, load_offer
 
 def _load_persona() -> str:
     """Характер бота и база знаний — в prompts/persona.txt.
@@ -85,7 +87,11 @@ _BOOTSTRAP_SCAN = 60                       # сколько message_id проб�
 _BOOTSTRAP_RETRY = 60                      # пауза между попытками достучаться до канала
 _BOOTSTRAP_MAX_WAIT = 1800                 # сколько всего ждём, пока бота добавят
 
-_CTA_BUTTON = "🔗 Что входит и сколько стоит"
+# Догоняющие сообщения из prompts/followups.txt: что бот пишет сам, когда
+# человек замолчал. Рассылку запускает внешнее расписание — см. run_followups.
+_FOLLOWUPS = load_followups()
+_FOLLOWUP_BATCH = 50        # сколько сообщений отправляем за один запуск
+_FOLLOWUP_PAUSE = 0.05      # пауза между отправками, чтобы не словить flood limit
 
 # Карточка продукта, продающий блок и CTA — из prompts/*.txt. Пока там метки
 # <<...>>, оффер не показывается и ИИ не обсуждает покупку.
@@ -307,6 +313,9 @@ class TelegramBot:
         chat_id = str(update.effective_chat.id)
         data = query.data or ""
 
+        # Клик — тоже активность: после него отсчёт тишины начинается заново.
+        await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
+
         if data == "offer":
             await self._handle_offer_click(query, chat_id)
         elif data == _GIFT_CALLBACK:
@@ -432,7 +441,9 @@ class TelegramBot:
         state = store.user(chat_id, source=source)
         if source and not state.source:
             state = replace(state, source=source)
-            await store.save(state)
+        # Отсчёт тишины идёт и от /start: человек, нажавший кнопку и пропавший
+        # молча, — самая частая потеря в воронке, и догонять его надо тоже.
+        await store.save(replace(state, last_seen_at=now_iso()))
         await store.event(chat_id, "start", bucket=state.bucket, source=state.source)
 
         try:
@@ -504,7 +515,7 @@ class TelegramBot:
         text = update.message.text.strip()
 
         state = store.user(chat_id)
-        state = replace(state, messages=state.messages + 1)
+        state = replace(state, messages=state.messages + 1, last_seen_at=now_iso())
         await store.save(state)
         is_premium = state.is_premium
 
@@ -586,11 +597,27 @@ class TelegramBot:
         if show_cta:
             await self._send_offer_cta(update, state)
 
+    @staticmethod
+    def _keyboard(buttons: tuple[CtaButton, ...]) -> InlineKeyboardMarkup | None:
+        """Клавиатура из кнопок, описанных в промпте.
+
+        По одной в ряд: подписи длинные, в два столбца Telegram обрезает их
+        многоточием, и человек не читает, куда ведёт кнопка.
+        """
+        if not buttons:
+            return None
+        return InlineKeyboardMarkup(
+            [[InlineKeyboardButton(b.label, callback_data=b.action)] for b in buttons]
+        )
+
     async def _send_offer_cta(self, update: Update, state: UserState) -> None:
-        """Оффер отдельным сообщением с кнопкой — так виден и показ, и клик."""
-        keyboard = InlineKeyboardMarkup([[
-            InlineKeyboardButton(_CTA_BUTTON, callback_data="offer")
-        ]])
+        """Оффер отдельным сообщением с кнопками — так виден и показ, и клик.
+
+        Кнопок несколько и они разные по смыслу: одна ведёт к условиям, вторая
+        отдаёт чек-лист. Второй выход нужен не меньше первого — человеку, для
+        которого сейчас рано, иначе остаётся только промолчать.
+        """
+        keyboard = self._keyboard(_OFFER.cta_buttons)
         try:
             await update.message.reply_text(
                 _OFFER.cta_text, parse_mode="HTML", reply_markup=keyboard
@@ -603,6 +630,89 @@ class TelegramBot:
         await store.event(
             state.chat_id, "cta_shown", bucket=state.bucket, at_message=state.messages
         )
+
+    # ------------------------------------------------------------------
+    # Догоняющие сообщения
+    # ------------------------------------------------------------------
+
+    async def run_followups(self, *, limit: int = _FOLLOWUP_BATCH) -> dict[str, Any]:
+        """Разослать созревшие догоняющие сообщения.
+
+        Вызывается снаружи по расписанию, а не внутренним планировщиком: на
+        бесплатном тарифе контейнер засыпает через 15 минут тишины, и таймер
+        внутри процесса просто не проснётся. Будильник обязан быть внешним.
+        """
+        if not self._app or not _FOLLOWUPS:
+            return {"sent": 0, "reason": "disabled"}
+
+        now = datetime.now(timezone.utc)
+        if is_quiet_hour(now):
+            # Ночью очередь не разбираем: шаги никуда не денутся, сообщение
+            # уйдёт утром. Разбудить человека в четыре утра — потерять его.
+            return {"sent": 0, "reason": "quiet_hours"}
+
+        sent = skipped = blocked = failed = 0
+        for state in store.all_users():
+            if sent >= limit:
+                break
+
+            step, advanced = next_step(
+                steps=_FOLLOWUPS,
+                last_seen_at=state.last_seen_at,
+                followups_sent=state.followups_sent,
+                is_premium=state.is_premium,
+                now=now,
+                offer_ready=_OFFER.is_ready,
+            )
+
+            if step is None:
+                if advanced != state.followups_sent:
+                    await store.save(replace(state, followups_sent=advanced))
+                    skipped += 1
+                continue
+
+            try:
+                await self._app.bot.send_message(
+                    chat_id=state.chat_id,
+                    text=step.text,
+                    parse_mode="HTML",
+                    disable_web_page_preview=True,
+                    reply_markup=self._keyboard(step.buttons),
+                )
+            except Forbidden:
+                # Человек заблокировал бота. Продолжать очередь бессмысленно:
+                # доводим счётчик до конца, чтобы не долбиться каждый запуск.
+                await store.save(replace(state, followups_sent=len(_FOLLOWUPS)))
+                await store.event(state.chat_id, "followup_blocked", step=step.index)
+                blocked += 1
+                continue
+            except TelegramError as e:
+                # Счётчик не двигаем — шаг попробуем на следующем запуске.
+                log_agent_action(
+                    "Followups",
+                    f"Шаг {step.index} не ушёл в чат {state.chat_id}: {e}",
+                    level="WARNING",
+                )
+                failed += 1
+                continue
+
+            await store.save(replace(state, followups_sent=advanced))
+            await store.event(
+                state.chat_id,
+                "followup_sent",
+                step=step.index,
+                bucket=state.bucket,
+                source=state.source,
+            )
+            sent += 1
+            await asyncio.sleep(_FOLLOWUP_PAUSE)
+
+        if sent or blocked or failed:
+            log_agent_action(
+                "Followups",
+                f"Отправлено {sent}, пропущено {skipped}, заблокировали {blocked}, ошибок {failed}",
+            )
+        return {"sent": sent, "skipped": skipped, "blocked": blocked, "failed": failed}
 
     async def _handle_offer_click(self, query, chat_id: str) -> None:
         """Клик по офферу — единственная точка перед оплатой, которую бот видит."""

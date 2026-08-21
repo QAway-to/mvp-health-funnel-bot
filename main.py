@@ -6,6 +6,7 @@
 """
 
 import os
+import secrets
 from contextlib import asynccontextmanager
 
 import uvicorn
@@ -47,6 +48,26 @@ async def debug_info():
         "payments_enabled": config.PAYMENTS_ENABLED,
         "logs": get_recent_logs(),
     }
+
+
+@app.api_route("/tasks/followups", methods=["GET", "POST"])
+async def run_followups(request: Request):
+    """Разослать созревшие догоняющие сообщения.
+
+    Дёргается внешним расписанием (Render Cron Job). Планировщик внутри
+    процесса здесь не работает: на бесплатном тарифе контейнер засыпает через
+    15 минут тишины, и его собственный таймер не проснётся — а внешний запрос
+    контейнер будит.
+    """
+    if not config.TASKS_SECRET:
+        raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
+
+    provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
+    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+        log_agent_action("App", "Запуск рассылки с неверным ключом отклонён", level="WARNING")
+        raise HTTPException(status_code=403, detail="bad secret")
+
+    return {"ok": True, **await telegram_bot.run_followups()}
 
 
 @app.post(telegram_bot.WEBHOOK_PATH)

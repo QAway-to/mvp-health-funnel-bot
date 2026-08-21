@@ -52,6 +52,11 @@ class UserState:
     source: str = ""
     seen_content: tuple[int, ...] = ()
     created_at: str = ""
+    # Последняя активность человека и сколько догоняющих сообщений ему уже
+    # ушло. Вместе они и составляют всю память цепочки: тишину считаем от
+    # last_seen_at, очередь шагов — от followups_sent.
+    last_seen_at: str = ""
+    followups_sent: int = 0
 
     def to_row(self) -> dict[str, Any]:
         return {
@@ -63,6 +68,8 @@ class UserState:
             "source": self.source,
             "seen_content": ",".join(str(i) for i in self.seen_content),
             "created_at": self.created_at,
+            "last_seen_at": self.last_seen_at,
+            "followups_sent": self.followups_sent,
         }
 
     @staticmethod
@@ -83,6 +90,8 @@ class UserState:
             source=str(row.get("source") or ""),
             seen_content=seen,
             created_at=str(row.get("created_at") or ""),
+            last_seen_at=str(row.get("last_seen_at") or ""),
+            followups_sent=_as_int(row.get("followups_sent")),
         )
 
 
@@ -138,6 +147,7 @@ class Store(Protocol):
     async def start(self) -> None: ...
     async def stop(self) -> None: ...
     def user(self, chat_id: str, *, source: str = "") -> UserState: ...
+    def all_users(self) -> list[UserState]: ...
     async def save(self, state: UserState, *, immediate: bool = False) -> bool: ...
     async def event(self, chat_id: str, name: str, **payload: Any) -> None: ...
 
@@ -223,6 +233,15 @@ class SheetsStore:
             self._dirty.add(chat_id)
         return state
 
+    def all_users(self) -> list[UserState]:
+        """Snapshot of every known user.
+
+        A copy on purpose: callers iterate with awaits inside, and the cache is
+        mutated by the chat loop meanwhile — iterating the live dict would
+        raise mid-broadcast.
+        """
+        return list(self._users.values())
+
     async def save(self, state: UserState, *, immediate: bool = False) -> bool:
         """Persist state. Returns False when an immediate write did NOT land,
         so callers holding money-critical data can escalate."""
@@ -289,8 +308,12 @@ class SheetsStore:
         self._events.extendleft(reversed(events))
 
 
-def _now() -> str:
+def now_iso() -> str:
+    """Метка времени в том виде, в каком её понимают таблица и `parse_ts`."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+_now = now_iso
 
 
 store: Store = SheetsStore()

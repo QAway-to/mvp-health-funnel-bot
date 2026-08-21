@@ -154,3 +154,44 @@ def test_comment_lines_do_not_leak_into_prompt(prompts):
 
     assert "служебный комментарий" not in result.product_card
     assert "НАЗВАНИЕ: Курс" in result.product_card
+
+
+# --- кнопки под оффером ----------------------------------------------------
+
+
+def test_buttons_are_parsed_out_of_the_message(prompts):
+    """Разметка кнопок не должна остаться в тексте — её прочитал бы человек."""
+    (prompts / "product.txt").write_text("ЦЕНА: 4900", encoding="utf-8")
+    (prompts / "offer_cta.txt").write_text(
+        "Хочешь системно?\n@offer 🔗 Что входит\n@gift 🎁 Пока рано", encoding="utf-8"
+    )
+
+    result = load_offer("https://pay.example/x")
+
+    assert result.cta_text == "Хочешь системно?"
+    assert [(b.action, b.label) for b in result.cta_buttons] == [
+        ("offer", "🔗 Что входит"),
+        ("gift", "🎁 Пока рано"),
+    ]
+
+
+def test_offer_falls_back_to_a_default_button(prompts):
+    (prompts / "product.txt").write_text("ЦЕНА: 4900", encoding="utf-8")
+    (prompts / "offer_cta.txt").write_text("Просто текст", encoding="utf-8")
+
+    result = load_offer("https://pay.example/x")
+
+    assert len(result.cta_buttons) == 1
+    assert result.cta_buttons[0].action == "offer"
+
+
+def test_unknown_button_action_stays_in_the_text(prompts):
+    """@buy не поддержан — строка остаётся текстом, а не превращается в кнопку
+    с неизвестным callback_data, по которой бот молчит."""
+    (prompts / "product.txt").write_text("ЦЕНА: 4900", encoding="utf-8")
+    (prompts / "offer_cta.txt").write_text("Текст\n@buy Купить", encoding="utf-8")
+
+    result = load_offer("https://pay.example/x")
+
+    assert "@buy Купить" in result.cta_text
+    assert result.cta_buttons[0].label != "Купить"
