@@ -72,6 +72,30 @@ const platform = source.kind;
   }
 
   {
+    (source.kind === 'youtube' || source.kind === 'tiktok') && (
+      <div class="player__loading" data-video-loading hidden>
+        <img class="player__poster" src={poster} alt="" aria-hidden="true" />
+        <span class="player__veil" />
+        <span class="player__spinner" aria-hidden="true" data-video-spinner />
+        <p class="player__status" role="status" data-video-status>
+          Загружаем плеер…
+        </p>
+      </div>
+    )
+  }
+
+  {
+    (source.kind === 'youtube' || source.kind === 'tiktok') && (
+      <div class="player__stalled" data-video-stalled hidden>
+        <span class="player__stalled-text">Ролик не запускается?</span>
+        <a class="player__fallback" href={url} target="_blank" rel="noopener">
+          Открыть в {source.kind === 'tiktok' ? 'TikTok' : 'YouTube'}
+        </a>
+      </div>
+    )
+  }
+
+  {
     source.kind === 'unresolvable' && (
       <div class="player__empty">
         <img class="player__poster" src={poster} alt="" aria-hidden="true" loading="lazy" />
@@ -210,6 +234,115 @@ const platform = source.kind;
     filter: brightness(0.55);
   }
 
+  /* Слой загрузки: живёт между кликом и готовностью плеера.
+     Без него на месте ролика несколько секунд стоит чёрный прямоугольник,
+     и человек не понимает, идёт загрузка или всё сломалось. */
+  .player__loading {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    display: grid;
+    place-content: center;
+    justify-items: center;
+    gap: 16px;
+  }
+
+  .player__loading[hidden] {
+    display: none;
+  }
+
+  /* Постер выводим из потока: в гриде он остаётся строкой и уводит крутилку
+     под себя, вместо того чтобы лежать под ней фоном. */
+  .player__loading .player__poster {
+    position: absolute;
+    inset: 0;
+  }
+
+  .player__veil {
+    position: absolute;
+    inset: 0;
+    background: rgba(28, 24, 16, 0.72);
+  }
+
+  .player__spinner {
+    position: relative;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.25);
+    border-top-color: var(--accent);
+    animation: player-spin 800ms linear infinite;
+  }
+
+  .player__spinner[hidden] {
+    display: none;
+  }
+
+  @keyframes player-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Крутилка — единственный сигнал, что что-то происходит, поэтому при
+     отключённой анимации она не исчезает, а пульсирует. */
+  @media (prefers-reduced-motion: reduce) {
+    .player__spinner {
+      animation: player-pulse 1.6s ease-in-out infinite;
+    }
+
+    @keyframes player-pulse {
+      50% {
+        opacity: 0.35;
+      }
+    }
+  }
+
+  /* Подпись — вторая строка грида под крутилкой, а не полоса по низу:
+     внизу стоит запасная ссылка, и абсолютная подпись легла бы под неё. */
+  .player__status {
+    max-width: 80%;
+    text-align: center;
+    font-size: 15px;
+    line-height: 1.5;
+    color: #fff;
+  }
+
+  /* Запасной выход. Плеер площадки может подняться и всё равно не отдать видео
+     — например, если встраивание режет расширение или сеть. Полотно поверх
+     ролика в этом случае класть нельзя: если видео всё-таки играет, полотно
+     перехватит клик. Поэтому — полоса по низу, вне кадра. */
+  .player__stalled {
+    position: absolute;
+    inset: auto 0 0 0;
+    z-index: 2;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 16px;
+    background: rgba(28, 24, 16, 0.88);
+  }
+
+  .player__stalled[hidden] {
+    display: none;
+  }
+
+  .player__stalled-text {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.85);
+  }
+
+  .player__fallback {
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 15px;
+    color: #fff;
+    text-decoration: underline;
+    text-underline-offset: 4px;
+  }
+
   /* Плеер, вставленный после клика */
   .player :global(iframe) {
     position: absolute;
@@ -224,12 +357,40 @@ const platform = source.kind;
   import { track } from '../scripts/track';
 
   const facade = document.querySelector<HTMLButtonElement>('[data-video-facade]');
+  const player = facade?.closest<HTMLElement>('.player') ?? null;
+  const loading = player?.querySelector<HTMLElement>('[data-video-loading]') ?? null;
+  const spinner = player?.querySelector<HTMLElement>('[data-video-spinner]') ?? null;
+  const status = player?.querySelector<HTMLElement>('[data-video-status]') ?? null;
+  const stalled = player?.querySelector<HTMLElement>('[data-video-stalled]') ?? null;
+
+  /**
+   * Сколько ждём первый кадр, прежде чем показать ссылку на площадку.
+   * Плееры тянут по паре мегабайт скриптов, и на медленной мобильной сети
+   * десяти секунд не хватает — отсюда запас.
+   */
+  const GIVE_UP_AFTER = 15_000;
+
+  /** Сообщения плеера TikTok: `{ type, value, 'x-tiktok-player': true }`. */
+  type PlayerMessage = { readonly type: string; readonly value?: number };
+
+  const isPlayerMessage = (data: unknown): data is PlayerMessage =>
+    typeof data === 'object' && data !== null && 'x-tiktok-player' in data;
+
+  /** Плеер играет. Значения повторяют семантику YouTube: 1 — воспроизведение. */
+  const STATE_PLAYING = 1;
+
+  /**
+   * Через сколько смотреть, не схлопнулся ли iframe. Блокировщики рекламы
+   * не отменяют вставку кадра, а гасят его в ноль — запроса к площадке при этом
+   * не происходит вовсе, поэтому ждать `load` или сообщений плеера бесполезно.
+   */
+  const COLLAPSE_CHECK_AFTER = 1_500;
 
   facade?.addEventListener(
     'click',
     () => {
       const embed = facade.dataset.embed;
-      if (!embed) return;
+      if (!embed || !player) return;
 
       const iframe = document.createElement('iframe');
       iframe.src = embed;
@@ -237,7 +398,63 @@ const platform = source.kind;
       iframe.allow = 'accelerometer; autoplay; encrypted-media; picture-in-picture; fullscreen';
       iframe.allowFullscreen = true;
 
+      // Слой загрузки открываем ДО вставки iframe: иначе между кликом и первым
+      // кадром на месте ролика стоит чёрный прямоугольник без единого признака
+      // жизни, и это читается как поломка.
+      loading?.removeAttribute('hidden');
       facade.replaceWith(iframe);
+
+      /** Кадр не поднялся: снимаем крутилку, объясняем и даём ссылку на площадку. */
+      const offerFallback = (reason: string) => {
+        window.clearTimeout(giveUp);
+        window.clearTimeout(collapseCheck);
+        spinner?.setAttribute('hidden', '');
+        if (status) status.textContent = reason;
+        loading?.removeAttribute('hidden');
+        stalled?.removeAttribute('hidden');
+      };
+
+      const giveUp = window.setTimeout(
+        () => offerFallback('Плеер не отвечает — возможно, мешает сеть.'),
+        GIVE_UP_AFTER,
+      );
+
+      const collapseCheck = window.setTimeout(() => {
+        if (iframe.getBoundingClientRect().height === 0) {
+          offerFallback('Плеер заблокирован в браузере — чаще всего это расширение.');
+        }
+      }, COLLAPSE_CHECK_AFTER);
+
+      const hideLoader = () => loading?.setAttribute('hidden', '');
+
+      const playing = () => {
+        window.clearTimeout(giveUp);
+        window.clearTimeout(collapseCheck);
+        window.removeEventListener('message', onPlayerMessage);
+        hideLoader();
+        stalled?.setAttribute('hidden', '');
+      };
+
+      /**
+       * `load` у iframe означает лишь, что загрузился документ плеера, — кадра
+       * за ним ещё нет. TikTok досылает `onPlayerReady`, когда собран интерфейс,
+       * и `onStateChange`, когда пошло видео. Крутилку снимаем по первому,
+       * сторожевой таймер — по второму.
+       */
+      const onPlayerMessage = (event: MessageEvent) => {
+        if (event.source !== iframe.contentWindow || !isPlayerMessage(event.data)) return;
+
+        if (event.data.type === 'onPlayerReady') hideLoader();
+        if (event.data.type === 'onStateChange' && event.data.value === STATE_PLAYING) playing();
+      };
+
+      window.addEventListener('message', onPlayerMessage);
+
+      // У YouTube без `enablejsapi` событий нет, там единственный сигнал — `load`.
+      if (facade.dataset.platform === 'youtube') {
+        iframe.addEventListener('load', playing, { once: true });
+      }
+
       track('demo_played', { source: facade.dataset.platform ?? 'unknown' });
     },
     { once: true },
