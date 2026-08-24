@@ -2,7 +2,7 @@ import asyncio
 import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
-from dataclasses import replace
+from dataclasses import dataclass, replace
 from typing import Any
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
@@ -15,7 +15,7 @@ from utils.llm import chat_completion
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
-from utils.offer import CtaButton, load_offer
+from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 
 def _load_persona() -> str:
     """Характер бота и база знаний — в prompts/persona.txt.
@@ -96,6 +96,54 @@ _FOLLOWUP_PAUSE = 0.05      # пауза между отправками, что
 # Карточка продукта, продающий блок и CTA — из prompts/*.txt. Пока там метки
 # <<...>>, оффер не показывается и ИИ не обсуждает покупку.
 _OFFER = load_offer(config.PURCHASE_URL)
+
+# Ступени тарифа. Подписи кнопок — в prompts/offer_plans.txt, цены в звёздах —
+# в окружении: текст правит тот, кто пишет тексты, деньги задаёт тот, у кого
+# доступ к кассе.
+_PLAN_STARS = {
+    "buy_base": config.STARS_PRICE_BASE,
+    "buy_premium": config.STARS_PRICE_PREMIUM,
+    "buy_pro": config.STARS_PRICE_PRO,
+}
+
+_PLAN_TITLE_MAX = 32   # лимит Telegram на заголовок счёта
+
+
+@dataclass(frozen=True)
+class Plan:
+    """Ступень тарифа: что написано на кнопке и чем за неё платят."""
+
+    action: str
+    label: str
+    stars: int
+
+    @property
+    def title(self) -> str:
+        """Заголовок счёта — подпись кнопки без эмодзи и в пределах лимита."""
+        clean = self.label.lstrip("💳🔗🎁 ").strip()
+        return clean[:_PLAN_TITLE_MAX] or "Доступ к программе"
+
+
+def _load_plans() -> tuple[str, tuple[Plan, ...]]:
+    """Текст и ступени из prompts/offer_plans.txt."""
+    text, buttons = split_buttons(read_prompt("offer_plans.txt"))
+    plans = tuple(
+        Plan(action=button.action, label=button.label, stars=_PLAN_STARS.get(button.action, 0))
+        for button in buttons
+        if button.action in _PLAN_STARS
+    )
+    return text or "Что выбираете?", plans
+
+
+_PLANS_TEXT, _PLANS = _load_plans()
+
+def _default_plan() -> "Plan | None":
+    """Ступень для команды /buy: рекомендуемая, иначе первая продаваемая."""
+    for plan in _PLANS:
+        if plan.action == "buy_premium" and plan.stars:
+            return plan
+    return next((plan for plan in _PLANS if plan.stars), None)
+
 
 _PREMIUM_UNLOCKED_TEXT = (
     "Отлично! Доступ открыт. Теперь тебе доступны все материалы Федерации Здоровья.\n"
@@ -320,17 +368,24 @@ class TelegramBot:
             await self._handle_offer_click(query, chat_id)
         elif data == _GIFT_CALLBACK:
             await self._send_gift(query.message, chat_id)
+        else:
+            plan = next((p for p in _PLANS if p.action == data), None)
+            if plan:
+                await self._handle_plan_click(query, chat_id, plan)
 
     # --- Касса внутри бота: спит при PAYMENTS_ENABLED=false ------------------
     # Четыре метода ниже не зарегистрированы как хендлеры, пока флаг опущен.
     # Оставлены намеренно: продажа сейчас закрывается на внешней странице,
     # но Stars может понадобиться снова — код рабочий и покрыт.
 
-    async def _send_invoice(self, message) -> bool:
+    async def _send_invoice(self, message, plan: "Plan | None" = None) -> bool:
         """Счёт в Telegram Stars. Оплата не выходит из чата — ни лендинга, ни карты."""
+        plan = plan or _default_plan()
+        title = plan.title if plan else _OFFER.product_name
+        amount = plan.stars if plan else _STARS_PRICE
         try:
             await message.reply_invoice(
-                title=_OFFER.product_name,
+                title=title,
                 description=(
                     "Полный доступ к программе. Оплата проходит внутри Telegram, "
                     "карта не нужна."
@@ -341,7 +396,7 @@ class TelegramBot:
                 # оставался вообще без ответа.
                 provider_token="",
                 currency="XTR",
-                prices=[LabeledPrice(label=_OFFER.product_name, amount=_STARS_PRICE)],
+                prices=[LabeledPrice(label=title, amount=amount)],
             )
             return True
         except TelegramError as e:
@@ -714,8 +769,27 @@ class TelegramBot:
             )
         return {"sent": sent, "skipped": skipped, "blocked": blocked, "failed": failed}
 
+    def _sellable_plans(self) -> tuple[Plan, ...]:
+        """Ступени, за которые сейчас реально можно заплатить.
+
+        Кнопка, ведущая в никуда, хуже отсутствующей: человек нажимает,
+        получает извинение и уходит.
+        """
+
+        def sellable(plan: Plan) -> bool:
+            # Либо цена в звёздах и включённая касса, либо внешняя страница,
+            # которая принимает любую ступень.
+            return bool(plan.stars and config.PAYMENTS_ENABLED) or bool(_OFFER.purchase_url)
+
+        return tuple(plan for plan in _PLANS if sellable(plan))
+
     async def _handle_offer_click(self, query, chat_id: str) -> None:
-        """Клик по офферу — единственная точка перед оплатой, которую бот видит."""
+        """Клик по «что входит» — состав и ступени, а не сразу счёт.
+
+        Кнопка обещает рассказать, что входит и сколько стоит. Счёт вместо
+        ответа выглядит так, будто рассказывать нечего: человек видит сумму,
+        не увидев продукта, и закрывает чат.
+        """
         state = store.user(chat_id)
         await store.event(chat_id, "offer_clicked", bucket=state.bucket, at_message=state.messages)
 
@@ -726,26 +800,56 @@ class TelegramBot:
             await query.message.reply_text("Подробности скоро — напиши мне, всё расскажу.")
             return
 
-        # Касса внутри Telegram — счёт приходит прямо в чат, без внешней страницы.
-        if config.PAYMENTS_ENABLED:
-            if await self._send_invoice(query.message):
-                await store.event(chat_id, "invoice_sent", bucket=state.bucket)
+        details = _OFFER.details_message()
+        plans = self._sellable_plans()
+
+        if not plans:
+            log_agent_action("Telegram", "Offer clicked, but no payment path is configured", level="WARNING")
+            await query.message.reply_text(
+                f"{details}\n\nОплату сейчас подключаем — напиши мне, и я открою доступ вручную."
+                if details
+                else "Страница оплаты ещё подключается. Напиши мне — расскажу про программу.",
+                parse_mode="HTML",
+            )
+            return
+
+        try:
+            await query.message.reply_text(details, parse_mode="HTML")
+            await query.message.reply_text(
+                _PLANS_TEXT,
+                parse_mode="HTML",
+                reply_markup=self._keyboard(
+                    tuple(CtaButton(plan.action, plan.label) for plan in plans)
+                ),
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to send offer details: {e}", level="ERROR")
+            return
+
+        await store.event(chat_id, "offer_details_shown", bucket=state.bucket, plans=len(plans))
+
+    async def _handle_plan_click(self, query, chat_id: str, plan: Plan) -> None:
+        """Выбрана ступень — отсюда и только отсюда начинается оплата."""
+        state = store.user(chat_id)
+        await store.event(chat_id, "plan_clicked", plan=plan.action, bucket=state.bucket)
+
+        if config.PAYMENTS_ENABLED and plan.stars:
+            if await self._send_invoice(query.message, plan):
+                await store.event(chat_id, "invoice_sent", plan=plan.action, bucket=state.bucket)
             return
 
         if not _OFFER.purchase_url:
-            log_agent_action("Telegram", "Offer clicked, but PURCHASE_URL is empty", level="WARNING")
             await query.message.reply_text(
-                "Страница оплаты ещё подключается. Напиши мне — отвечу на любые вопросы "
-                "по программе и подскажу, с чего начать."
+                "Эту ступень пока нельзя оплатить в чате. Напиши мне — договоримся."
             )
             return
 
         separator = "&" if "?" in _OFFER.purchase_url else "?"
-        url = f"{_OFFER.purchase_url}{separator}uid={chat_id}"
+        url = f"{_OFFER.purchase_url}{separator}uid={chat_id}&plan={plan.action}"
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Перейти к оплате", url=url)]])
         try:
             await query.message.reply_text(
-                "Вот страница с условиями и оплатой:", reply_markup=keyboard
+                f"{plan.title} — вот страница с оплатой:", reply_markup=keyboard
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send purchase link: {e}", level="ERROR")

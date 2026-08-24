@@ -40,7 +40,13 @@ class Config:
     TASKS_SECRET: Optional[str] = os.getenv("TASKS_SECRET")
     PURCHASE_URL: Optional[str] = os.getenv("PURCHASE_URL")
     PAYMENTS_ENABLED: bool = _flag("PAYMENTS_ENABLED")
+    # Цена ступени в звёздах Telegram. Ноль означает «в звёздах не продаём» —
+    # такая ступень уходит на внешнюю страницу оплаты. Курс звезды к доллару
+    # тут не считается: он меняется, и придуманное число обмануло бы кассу.
     STARS_PRICE: int = int(os.getenv("STARS_PRICE", "1000"))
+    STARS_PRICE_BASE: int = int(os.getenv("STARS_PRICE_BASE", "0"))
+    STARS_PRICE_PREMIUM: int = int(os.getenv("STARS_PRICE_PREMIUM", "0")) or STARS_PRICE
+    STARS_PRICE_PRO: int = int(os.getenv("STARS_PRICE_PRO", "0"))
 
     # --- LLM ---
     DEEPSEEK_API_KEY: Optional[str] = os.getenv("DEEPSEEK_API_KEY")

@@ -46,6 +46,19 @@ def looks_like_price_talk(text: str) -> bool:
 
 DEMO_MARKER = "# DEMO"
 _INVOICE_TITLE_MAX = 32  # лимит Telegram на заголовок счёта
+_MESSAGE_LIMIT = 4096    # лимит Telegram на одно сообщение
+
+# Заголовок раздела карточки: «ЧТО ВХОДИТ:» и всё, что за ним до следующего.
+_SECTION_RE = re.compile(r"^([А-ЯЁ][А-ЯЁ \-]*):(.*)$")
+
+# Что и в каком порядке показываем в ответе на «что входит». Порядок не
+# случайный: сначала содержание, потом цена, и только потом ограничения —
+# цена до состава читается как «сколько с меня», а не «что я получу».
+_DETAIL_BLOCKS = (
+    ("Что входит", "ЧТО ВХОДИТ"),
+    ("Сколько стоит", "ЦЕНА"),
+    ("Кому не подойдёт", "КОМУ НЕ ПОДОЙДЁТ"),
+)
 
 
 def _read_raw(name: str) -> str:
@@ -61,16 +74,19 @@ def _strip_comments(raw: str) -> str:
     return "\n".join(lines).strip()
 
 
-def _read(name: str) -> str:
+def read_prompt(name: str) -> str:
     """Прочитать файл промпта, выбросив строки-комментарии."""
     return _strip_comments(_read_raw(name))
 
 
+_read = read_prompt
+
+
 # Кнопка в тексте промпта: строка вида "@offer Что входит и сколько стоит".
 # Так подписи правит тот, кто пишет тексты, а не тот, кто читает Python.
-_BUTTON_RE = re.compile(r"^@(offer|gift)\s+(.+?)\s*$")
+BUTTON_ACTIONS = ("offer", "gift", "buy_base", "buy_premium", "buy_pro")
 
-BUTTON_ACTIONS = ("offer", "gift")
+_BUTTON_RE = re.compile(rf"^@({'|'.join(BUTTON_ACTIONS)})\s+(.+?)\s*$")
 
 
 @dataclass(frozen=True)
@@ -115,6 +131,47 @@ class Offer:
     @property
     def is_ready(self) -> bool:
         return not self.blockers
+
+    @property
+    def sections(self) -> dict[str, str]:
+        """Карточка продукта, разобранная по заголовкам вида «ЧТО ВХОДИТ:».
+
+        Разбираем то, что уже написано, вместо второго файла с тем же составом:
+        два источника фактов о продукте разъезжаются на первой же правке.
+        """
+        found: dict[str, list[str]] = {}
+        current: str | None = None
+        for line in self.product_card.splitlines():
+            match = _SECTION_RE.match(line)
+            if match:
+                current = match.group(1).strip()
+                found[current] = []
+                tail = match.group(2).strip()
+                if tail:
+                    found[current].append(tail)
+            elif current and line.strip():
+                found[current].append(line.rstrip())
+        return {key: "\n".join(value).strip() for key, value in found.items()}
+
+    def details_message(self) -> str:
+        """Ответ на вопрос «что входит» — состав и цены, а не сразу счёт.
+
+        Кнопка обещает состав и стоимость; счёт вместо них выглядит так, будто
+        ответить нечего. Здесь и есть ответ.
+        """
+        parts: list[str] = []
+        blocks = self.sections
+
+        name = blocks.get("НАЗВАНИЕ", "")
+        if name:
+            parts.append(f"<b>{name}</b>")
+        if blocks.get("ФОРМАТ"):
+            parts.append(blocks["ФОРМАТ"])
+        for heading, key in _DETAIL_BLOCKS:
+            if blocks.get(key):
+                parts.append(f"<b>{heading}</b>\n{blocks[key]}")
+
+        return "\n\n".join(parts)[:_MESSAGE_LIMIT]
 
     @property
     def product_name(self) -> str:
