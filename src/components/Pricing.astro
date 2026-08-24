@@ -66,7 +66,10 @@ const { pricing, tone } = Astro.props;
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     gap: 24px;
-    align-items: start;
+    /* Растягиваем по высоте: карточки разной высоты читаются как разные по
+       весу предложения, хотя отличаются только длиной текста. Кнопка внутри
+       прижата к низу (margin-top: auto), поэтому все три встают в одну линию. */
+    align-items: stretch;
   }
 
   .plan-card {
@@ -128,6 +131,10 @@ const { pricing, tone } = Astro.props;
     font-size: 17px;
     line-height: 1.55;
     color: var(--text-secondary);
+    /* Место под три строки. Абзацы у тарифов разной длины, и без этого списки
+       начинались бы на разной высоте — карточки выглядели бы съехавшими,
+       даже когда их внешняя высота одинакова. */
+    min-height: calc(3 * 1.55em);
   }
 
   .plan-card__text--bright {
