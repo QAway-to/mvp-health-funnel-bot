@@ -22,6 +22,16 @@
  */
 export type DirectionStatus = 'live' | 'soon';
 
+/**
+ * Насколько глубоко раскрыто открытое направление.
+ *
+ * `course` — разложено по модулям и урокам, человек проходит по шагам.
+ * `materials` — материалы открыты целиком, но пошагового курса ещё нет:
+ * часть уроков ждёт автора. Разница честно показывается в блоке подписки —
+ * человек платит, зная, что получает, и это дешевле любого возврата.
+ */
+export type DirectionDepth = 'course' | 'materials';
+
 export interface Direction {
   /** Стабильный ключ: уезжает в аналитику и в метку сегмента для бота. */
   readonly slug: string;
@@ -29,6 +39,8 @@ export interface Direction {
   /** Обещание в одну строку — то, что человек получит, а не тема урока. */
   readonly promise: string;
   readonly status: DirectionStatus;
+  /** Только у `live`: курс или пока набор материалов. */
+  readonly depth?: DirectionDepth;
   /** Адрес страницы, если она есть. У `soon` может быть, а может и не быть. */
   readonly href?: string;
   /** Фон карточки на главной. У `soon` может отсутствовать. */
@@ -41,6 +53,7 @@ export const directions: readonly Direction[] = [
     title: 'Бег',
     promise: 'Бегать легко и без тяжести наутро — за счёт техники, а не километров.',
     status: 'live',
+    depth: 'course',
     href: '/beg/',
     image: '/img/race-road.jpg',
   },
@@ -49,6 +62,7 @@ export const directions: readonly Direction[] = [
     title: 'Сон',
     promise: 'Засыпать вовремя и просыпаться выспавшимся — десять привычек вечера.',
     status: 'live',
+    depth: 'course',
     href: '/son/',
     image: '/img/son-night.jpg',
   },
@@ -56,7 +70,8 @@ export const directions: readonly Direction[] = [
     slug: 'zaryadka',
     title: 'Зарядка',
     promise: 'Утро по порядку: от подъёма до первого приёма пищи, без спешки.',
-    status: 'soon',
+    status: 'live',
+    depth: 'materials',
     href: '/zaryadka/',
     image: '/img/zaryadka-sunrise.jpg',
   },
@@ -64,7 +79,8 @@ export const directions: readonly Direction[] = [
     slug: 'samomassazh',
     title: 'Самомассаж',
     promise: 'Снимать напряжение своими руками — пятнадцать минут и шесть приёмов.',
-    status: 'soon',
+    status: 'live',
+    depth: 'materials',
     href: '/samomassazh/',
     image: '/img/samomassazh-face.jpg',
   },
@@ -73,6 +89,7 @@ export const directions: readonly Direction[] = [
     title: 'Массаж',
     promise: 'Разобраться в видах массажа и выбрать свой, не переплачивая за незнание.',
     status: 'live',
+    depth: 'course',
     href: '/massazh/',
     image: '/img/massazh-spa.jpg',
   },
@@ -116,6 +133,11 @@ export const directions: readonly Direction[] = [
 
 export const liveDirections: readonly Direction[] = directions.filter(
   (direction) => direction.status === 'live',
+);
+
+/** Направления, раскрытые до уровня курса. */
+export const courseDirections: readonly Direction[] = liveDirections.filter(
+  (direction) => direction.depth === 'course',
 );
 
 export const soonDirections: readonly Direction[] = directions.filter(

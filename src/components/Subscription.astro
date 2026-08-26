@@ -30,6 +30,7 @@ const tiers = resolveTiers(segment);
 const checkoutReady = hasAnyCheckout();
 const terms = site.subscription.terms;
 const soonNames = soonDirections.map((direction) => direction.title.toLowerCase()).join(', ');
+const materialsOnly = liveDirections.filter((direction) => direction.depth === 'materials');
 ---
 
 <section id="price" class={`section section--${tone}`} data-section="price">
@@ -87,17 +88,34 @@ const soonNames = soonDirections.map((direction) => direction.title.toLowerCase(
         </ul>
       </div>
 
+      {/* Пометка «материалы» отличает направления, где открыт весь материал,
+          но пошагового курса ещё нет. Человек должен видеть эту разницу до
+          оплаты, а не обнаружить её после. */}
       <ul class="subscription__list">
         {
           liveDirections.map((direction) => (
             <li class="subscription__item">
-              <span class="subscription__item-title">{direction.title}</span>
+              <span class="subscription__item-head">
+                <span class="subscription__item-title">{direction.title}</span>
+                {direction.depth === 'materials' && (
+                  <span class="subscription__item-note">материалы</span>
+                )}
+              </span>
               <span class="subscription__item-text">{direction.promise}</span>
             </li>
           ))
         }
       </ul>
     </div>
+
+    {
+      materialsOnly.length > 0 && (
+        <p class="subscription__note">
+          Пометка «материалы» — направление открыто целиком, но пошагового курса
+          по нему пока нет: {materialsOnly.map((d) => d.title.toLowerCase()).join(' и ')}.
+        </p>
+      )
+    }
 
     {
       !checkoutReady && (
@@ -318,6 +336,23 @@ const soonNames = soonDirections.map((direction) => direction.title.toLowerCase(
     gap: 4px;
     padding-top: 12px;
     border-top: 1px solid var(--border-hairline);
+  }
+
+  .subscription__item-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .subscription__item-note {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border: 1px solid var(--border-soft);
+    padding: 1px 6px;
   }
 
   .subscription__item-title {
