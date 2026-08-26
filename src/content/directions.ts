@@ -12,8 +12,13 @@
  */
 
 /**
- * `live` — страница написана и открыта.
- * `soon` — тема заявлена в плане, материалов ещё нет. Карточка не кликается.
+ * `live` — материал готов, направление входит в подписку.
+ * `soon` — тема заявлена, материала на полноценный курс пока нет.
+ *
+ * Статус — про **продукт**, а не про страницу. У направления может быть
+ * готовый лендинг и при этом статус `soon`: страница собирает заявки в бота,
+ * но в состав подписки направление не заявляется. Обещать в подписке то,
+ * что не открывается, — самый дорогой способ получить возврат.
  */
 export type DirectionStatus = 'live' | 'soon';
 
@@ -24,7 +29,7 @@ export interface Direction {
   /** Обещание в одну строку — то, что человек получит, а не тема урока. */
   readonly promise: string;
   readonly status: DirectionStatus;
-  /** Адрес страницы. У `soon` его нет: вести некуда. */
+  /** Адрес страницы, если она есть. У `soon` может быть, а может и не быть. */
   readonly href?: string;
   /** Фон карточки на главной. У `soon` может отсутствовать. */
   readonly image?: string;
@@ -51,7 +56,7 @@ export const directions: readonly Direction[] = [
     slug: 'zaryadka',
     title: 'Зарядка',
     promise: 'Утро по порядку: от подъёма до первого приёма пищи, без спешки.',
-    status: 'live',
+    status: 'soon',
     href: '/zaryadka/',
     image: '/img/zaryadka-sunrise.jpg',
   },
@@ -59,7 +64,7 @@ export const directions: readonly Direction[] = [
     slug: 'samomassazh',
     title: 'Самомассаж',
     promise: 'Снимать напряжение своими руками — пятнадцать минут и шесть приёмов.',
-    status: 'live',
+    status: 'soon',
     href: '/samomassazh/',
     image: '/img/samomassazh-face.jpg',
   },

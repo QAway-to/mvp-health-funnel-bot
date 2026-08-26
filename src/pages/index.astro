@@ -90,15 +90,22 @@ const hasTestimonials = testimonialsFor('all').length > 0;
         <p class="kicker">Готовятся</p>
         <h2 class="h2">Ещё {soonDirections.length} направлений в работе</h2>
         <p class="soon__lead">
-          Они заявлены в плане Федерации и открываются подписчикам без доплаты. Порядок
-          зависит от того, чего просят чаще — написать об этом можно в боте.
+          Они заявлены в плане Федерации и откроются подписчикам без доплаты. У части
+          из них страница уже готова — материал дописывается. Порядок зависит от того,
+          чего просят чаще: написать об этом можно в боте.
         </p>
 
         <ul class="soon">
           {
             soonDirections.map((direction) => (
               <li class="soon__item">
-                <span class="soon__title">{direction.title}</span>
+                {direction.href ? (
+                  <a class="soon__title soon__title--link" href={direction.href}>
+                    {direction.title} →
+                  </a>
+                ) : (
+                  <span class="soon__title">{direction.title}</span>
+                )}
                 <span class="soon__text">{direction.promise}</span>
               </li>
             ))
@@ -235,8 +242,9 @@ const hasTestimonials = testimonialsFor('all').length > 0;
     max-width: 62ch;
   }
 
-  /* Готовящиеся направления намеренно не карточки и не ссылки: вести некуда,
-     а кликабельный вид обещал бы страницу, которой нет. */
+  /* Готовящиеся направления — списком, а не карточками: они не входят в
+     подписку, и выглядеть наравне с открытыми не должны. Ссылка появляется
+     только у тех, где страница уже есть: она собирает заявки в бота. */
   .soon {
     margin: 0;
     padding: 0;
@@ -259,6 +267,14 @@ const hasTestimonials = testimonialsFor('all').length > 0;
     font-size: 20px;
     font-weight: 800;
     color: var(--text-card);
+  }
+
+  .soon__title--link {
+    color: var(--accent-text);
+  }
+
+  .soon__title--link:hover {
+    color: var(--accent-hover);
   }
 
   .soon__text {
