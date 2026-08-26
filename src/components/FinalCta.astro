@@ -1,6 +1,6 @@
 ---
 import Cta from './Cta.astro';
-import { checkoutHref, checkoutKind, checkoutLabel } from '../lib/offer';
+import { featuredTier } from '../lib/offer';
 import type { FinalCta } from '../content/types';
 
 /**
@@ -16,6 +16,8 @@ interface Props {
 }
 
 const { finalCta, segment } = Astro.props;
+
+const featured = featuredTier(segment);
 ---
 
 <section class="final" data-section="final">
@@ -35,8 +37,8 @@ const { finalCta, segment } = Astro.props;
     <p class="final__lead">{finalCta.lead}</p>
 
     <div class="final__actions">
-      <Cta kind={checkoutKind()} href={checkoutHref(segment)} placement="final">
-        {checkoutLabel()}
+      <Cta kind={featured.kind} href={featured.href} placement="final">
+        {featured.ctaLabel}
       </Cta>
       {finalCta.note && <p class="final__note">{finalCta.note}</p>}
     </div>

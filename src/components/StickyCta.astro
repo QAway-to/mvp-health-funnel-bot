@@ -1,6 +1,6 @@
 ---
 import { startUrl } from '../lib/leadLink';
-import { checkoutHref, checkoutLabel, hasCheckout } from '../lib/offer';
+import { featuredTier } from '../lib/offer';
 
 /**
  * Закреплённая панель внизу экрана — только на мобильном.
@@ -21,7 +21,8 @@ interface Props {
 
 const { segment } = Astro.props;
 
-const showSales = hasCheckout();
+const featured = featuredTier(segment);
+const showSales = featured.hasCheckout;
 ---
 
 <div class="sticky" data-sticky-cta hidden>
@@ -33,12 +34,12 @@ const showSales = hasCheckout();
     showSales && (
       <a
         class="sticky__btn sticky__btn--sales"
-        href={checkoutHref(segment)}
+        href={featured.href}
         data-cta="sticky_sales"
         data-cta-kind="sales"
         hidden
       >
-        {checkoutLabel()}
+        {featured.ctaLabel}
       </a>
     )
   }

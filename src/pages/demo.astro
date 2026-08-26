@@ -7,7 +7,7 @@ import { site, routes } from '../config/site';
 import { landingA } from '../content/landing-a';
 import { standaloneNav } from '../content/nav';
 import { startUrl } from '../lib/leadLink';
-import { checkoutHref, checkoutKind, checkoutLabel, isFilled } from '../lib/offer';
+import { featuredTier, isFilled } from '../lib/offer';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -25,6 +25,7 @@ const meta = {
 };
 
 const hasTranscript = site.demo.transcript.length > 0;
+const featured = featuredTier('demo');
 
 /** Разбор техники берём из существующего контента, чтобы формулировки совпадали. */
 const { mechanism } = landingA;
@@ -80,8 +81,8 @@ const { mechanism } = landingA;
           <Cta kind="primary" href={startUrl('demo')} placement="demo_free">
             Забрать первый шаг бесплатно
           </Cta>
-          <Cta kind={checkoutKind()} href={checkoutHref('demo')} placement="demo_sales">
-            {checkoutLabel()}
+          <Cta kind={featured.kind} href={featured.href} placement="demo_sales">
+            {featured.ctaLabel}
           </Cta>
         </div>
 

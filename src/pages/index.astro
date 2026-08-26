@@ -3,10 +3,12 @@ import Cta from '../components/Cta.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import Subscription from '../components/Subscription.astro';
+import Testimonials from '../components/Testimonials.astro';
 import { routes, site } from '../config/site';
 import { ctaLabels } from '../content/cta';
 import { directions, liveDirections, soonDirections } from '../content/directions';
 import { hubNav } from '../content/nav';
+import { testimonialsFor } from '../content/testimonials';
 import { startUrl } from '../lib/leadLink';
 import Landing from '../layouts/Landing.astro';
 
@@ -29,6 +31,10 @@ const meta = {
 
 const liveCount = liveDirections.length;
 const totalCount = directions.length;
+
+/* Тон следующей секции зависит от того, покажутся ли отзывы: иначе два
+   одинаковых фона встанут подряд. */
+const hasTestimonials = testimonialsFor('all').length > 0;
 ---
 
 <Landing meta={meta} path="/">
@@ -99,7 +105,9 @@ const totalCount = directions.length;
       </div>
     </section>
 
-    <Subscription tone="alt" segment="home" />
+    {hasTestimonials && <Testimonials tone="alt" segment="all" />}
+
+    <Subscription tone={hasTestimonials ? 'base' : 'alt'} segment="home" />
   </main>
 
   <SiteFooter />

@@ -15,6 +15,6 @@ export const ctaLabels = {
 
   /*
    * Подписи продажных кнопок здесь не живут: они зависят от того, заведена ли
-   * оплата и известна ли цена. Это решает src/lib/offer.ts — checkoutLabel().
+   * оплата у уровня подписки. Это решает src/lib/offer.ts — resolveTiers().
    */
 } as const;

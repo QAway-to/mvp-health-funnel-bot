@@ -1,16 +1,19 @@
 /**
- * Платная ступень: одна подписка на все направления Федерации.
+ * Платная ступень: подписка на все направления Федерации, три уровня доступа.
  *
  * Главное правило здесь одно: **кнопка никогда не ведёт в никуда**. Пока
- * ссылка оплаты не заведена, продажная кнопка превращается в бесплатную
+ * ссылка оплаты уровня не заведена, его кнопка превращается в бесплатную
  * ступень — человек уходит в бота, а не на 404. Раньше в вёрстку уезжал
  * литерал `{ССЫЛКА_ОПЛАТЫ}`, и клик по цене открывал ненайденную страницу.
  *
- * Сюда же стекается решение «показывать ли цену»: цена, период и условия
- * отмены живут в site.subscription, а весь сайт спрашивает про них здесь.
+ * Здесь же склеиваются две половины уровня: цена и ссылка живут в конфиге,
+ * а подпись и состав — в контенте. Соединяются по `id`, и если конфиг о таком
+ * уровне не знает, сборка падает — это лучше, чем карточка без цены в проде.
  */
 
 import { site } from '../config/site';
+import { subscriptionContent } from '../content/subscription';
+import type { SubscriptionTier } from '../content/types';
 import { isLeadSegment, startUrl } from './leadLink';
 
 /**
@@ -23,31 +26,37 @@ import { isLeadSegment, startUrl } from './leadLink';
 export const isFilled = (value: string | undefined): boolean =>
   typeof value === 'string' && value.trim().length > 0 && !value.includes('{');
 
-/** Заведена ли ссылка оплаты. От неё зависит тип и подпись каждой кнопки. */
-export const hasCheckout = (): boolean => isFilled(site.subscription.payUrl);
+type TierId = keyof typeof site.subscription.tiers;
 
-/** Известна ли цена. Может быть известна раньше, чем появится чекаут. */
-export const hasPrice = (): boolean => isFilled(site.subscription.price);
+const tierPrices = site.subscription.tiers;
 
-/** Цена с периодом: «990 ₽ в месяц». Пустая строка, если цены ещё нет. */
-export const priceLabel = (): string => {
-  if (!hasPrice()) return '';
-  const { price, period } = site.subscription;
+const isTierId = (id: string): id is TierId => id in tierPrices;
+
+/** Уровень, готовый к отрисовке: контент, цена и решение по кнопке. */
+export interface ResolvedTier extends SubscriptionTier {
+  /** Цена с периодом: «$20 в месяц». */
+  readonly priceLabel: string;
+  readonly href: string;
+  readonly kind: 'sales' | 'primary';
+  readonly ctaLabel: string;
+  readonly hasCheckout: boolean;
+}
+
+const priceLabelFor = (price: string): string => {
+  if (!isFilled(price)) return '';
+  const { period } = site.subscription;
   return isFilled(period) ? `${price} ${period}` : price;
 };
 
 /**
- * Куда ведёт кнопка покупки.
+ * Ссылка оплаты с меткой источника.
  *
- * Нет чекаута — ведём на бесплатную ступень с меткой сегмента. Есть чекаут —
- * метку стараемся не терять: имя параметра задаётся в конфиге, и пока оно
- * пустое, ссылка уходит как есть. Выдумывать параметр за чужой сервис нельзя —
- * лишний хвост в адресе может просто сломать оплату.
+ * Имя параметра задаётся в конфиге, и пока оно пустое, ссылка уходит как есть.
+ * Выдумывать параметр за чужой сервис нельзя — лишний хвост в адресе может
+ * просто сломать оплату.
  */
-export const checkoutHref = (segment?: string): string => {
-  const { payUrl, trackingParam } = site.subscription;
-
-  if (!hasCheckout()) return startUrl(segment);
+const payHref = (payUrl: string, segment?: string): string => {
+  const { trackingParam } = site.subscription;
   if (!isFilled(trackingParam) || !isLeadSegment(segment)) return payUrl;
 
   const separator = payUrl.includes('?') ? '&' : '?';
@@ -55,22 +64,55 @@ export const checkoutHref = (segment?: string): string => {
 };
 
 /**
- * Тип кнопки для компонента Cta.
+ * Уровни подписки в порядке контента, с подставленными ценами и ссылками.
  *
- * Без чекаута кнопка перестаёт быть продажной не только внешне: правило
- * «sales не выше 60% глубины» к бесплатной ступени не относится, и панель
- * внизу экрана не должна менять подпись на цену.
+ * Подпись кнопки честна в каждом состоянии: есть оплата — зовём в неё,
+ * нет — зовём на бесплатное, а не обещаем оплату, которой пока не существует.
  */
-export const checkoutKind = (): 'sales' | 'primary' => (hasCheckout() ? 'sales' : 'primary');
+export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
+  subscriptionContent.tiers.map((tier) => {
+    if (!isTierId(tier.id)) {
+      throw new Error(
+        `[subscription] уровень «${tier.id}» описан в контенте, но цены для него нет в site.subscription.tiers`,
+      );
+    }
+
+    const { price, payUrl } = tierPrices[tier.id];
+    const hasCheckout = isFilled(payUrl);
+
+    return {
+      ...tier,
+      priceLabel: priceLabelFor(price),
+      hasCheckout,
+      href: hasCheckout ? payHref(payUrl, segment) : startUrl(segment),
+      kind: hasCheckout ? 'sales' : 'primary',
+      ctaLabel: hasCheckout ? tier.ctaLabel : 'Первый шаг бесплатно',
+    };
+  });
 
 /**
- * Подпись кнопки покупки.
+ * Рекомендуемый уровень — тот, что помечен `badge`.
  *
- * Три состояния, и каждое честное: есть чекаут и цена — зовём с ценой;
- * есть чекаут без цены — зовём без суммы; нет чекаута — зовём на бесплатное,
- * а не обещаем оплату, которой нет.
+ * Он подставляется в сквозные места: мобильную панель и финальный призыв.
+ * Метка ставится ровно одному уровню: два «рекомендую» не рекомендуют ничего.
  */
-export const checkoutLabel = (): string => {
-  if (!hasCheckout()) return 'Первый шаг бесплатно';
-  return hasPrice() ? `Оформить подписку — ${priceLabel()}` : 'Оформить подписку';
+export const featuredTier = (segment?: string): ResolvedTier => {
+  const tiers = resolveTiers(segment);
+  const featured = tiers.filter((tier) => isFilled(tier.badge));
+
+  if (featured.length > 1) {
+    throw new Error('[subscription] метка «рекомендую» стоит больше чем у одного уровня');
+  }
+
+  const chosen = featured[0] ?? tiers.at(-1);
+
+  if (!chosen) {
+    throw new Error('[subscription] не описано ни одного уровня подписки');
+  }
+
+  return chosen;
 };
+
+/** Заведена ли оплата хоть у одного уровня. */
+export const hasAnyCheckout = (): boolean =>
+  Object.values(tierPrices).some((tier) => isFilled(tier.payUrl));
