@@ -1,4 +1,12 @@
-/** Структура контента лендинга. Оба лендинга (А и Б) описываются одной схемой. */
+/**
+ * Структура контента лендинга.
+ *
+ * Одной схемой описываются и два беговых лендинга из хендоффа, и страницы
+ * остальных направлений. Разница в том, что у направления материала меньше:
+ * поэтому всё, кроме первого экрана, вопросов и финального призыва —
+ * необязательно. Секция без данных просто не рисуется, а не показывает
+ * пустую рамку.
+ */
 
 export interface NavLink {
   readonly label: string;
@@ -12,6 +20,14 @@ export interface Meta {
   readonly ogImage: string;
 }
 
+/** Вторичная кнопка: «узнать больше», без обязательств. */
+export interface HeroSecondary {
+  readonly label: string;
+  readonly href: string;
+  /** Место в аналитике. */
+  readonly placement: string;
+}
+
 export interface Hero {
   readonly kicker: string;
   readonly title: string;
@@ -20,6 +36,15 @@ export interface Hero {
   /** Затемнение фонового фото, если в макете задан filter: brightness(). */
   readonly imageBrightness?: number;
   readonly trust: readonly string[];
+  /**
+   * Куда ведёт вторая кнопка. Не задана — предлагаем посмотреть состав
+   * направления.
+   *
+   * Демо-урок сюда ставят только там, где он по теме: ролик у нас один и он
+   * про технику бега, а на странице сна кнопка «посмотреть демо-урок» вела бы
+   * человека к разбору стопы.
+   */
+  readonly secondary?: HeroSecondary;
 }
 
 export interface MirrorCard {
@@ -110,29 +135,42 @@ export interface Author {
   readonly metrics: readonly Metric[];
 }
 
-export interface PricingPlan {
-  /** Стабильный ключ для аналитики: попадёт в `placement` кнопки. */
+/**
+ * Уровень подписки: то, что видно на карточке.
+ *
+ * Цены и ссылки оплаты здесь нет — она в site.subscription.tiers и
+ * подставляется по `id`. Так коммерческие данные остаются в одном месте,
+ * а копирайт правится без риска задеть ссылку на оплату.
+ */
+export interface SubscriptionTier {
+  /** Ключ уровня: связывает контент с ценой и уезжает в аналитику. */
   readonly id: string;
   readonly label: string;
-  readonly price: string;
   readonly text: string;
   readonly features: readonly string[];
+  /** Подпись кнопки, когда оплата заведена. Иначе зовём на бесплатную ступень. */
   readonly ctaLabel: string;
-  readonly href: string;
   /**
-   * Метка над карточкой («РЕКОМЕНДУЮ»). Она же помечает тариф как основной:
-   * его цену показывает мобильная панель и подставляют сквозные подписи кнопок.
-   * Ставится ровно одному тарифу — два «рекомендую» не рекомендуют ничего.
+   * Метка над карточкой («РЕКОМЕНДУЮ»). Она же помечает уровень как основной:
+   * его подставляют мобильная панель и финальный призыв. Ставится ровно
+   * одному уровню — два «рекомендую» не рекомендуют ничего.
    */
   readonly badge?: string;
 }
 
-export interface Pricing {
+/**
+ * Блок подписки. Продукт на сайте один — доступ ко всем направлениям сразу,
+ * а уровни отличаются обратной связью, а не объёмом материалов.
+ * Список направлений берётся из реестра, а не переписывается в контенте.
+ */
+export interface Subscription {
   readonly kicker: string;
   readonly title: string;
+  readonly lead: string;
+  /** Что даёт подписка на любом уровне. */
+  readonly features: readonly string[];
   /** По возрастанию цены: читают слева направо. */
-  readonly plans: readonly PricingPlan[];
-  readonly payment: string;
+  readonly tiers: readonly SubscriptionTier[];
 }
 
 export interface FaqItem {
@@ -149,9 +187,8 @@ export interface Faq {
 export interface FinalCta {
   readonly title: string;
   readonly lead: string;
-  readonly ctaLabel: string;
-  readonly href: string;
-  readonly note: string;
+  /** Строка под кнопкой. Пусто — строки нет: обещать нечего. */
+  readonly note?: string;
   readonly image: string;
   readonly imageBrightness: number;
 }
@@ -162,15 +199,15 @@ export interface LandingContent {
   readonly meta: Meta;
   readonly nav: readonly NavLink[];
   readonly hero: Hero;
-  readonly mirror: Mirror;
-  readonly reasons: Reasons;
-  readonly mechanism: Mechanism;
+  readonly mirror?: Mirror;
+  readonly reasons?: Reasons;
+  readonly mechanism?: Mechanism;
   /** Секция «Шесть эффектов» есть только на лендинге Б. */
   readonly effects?: Effects;
-  readonly program: Program;
-  readonly plan: Plan;
-  readonly author: Author;
-  readonly pricing: Pricing;
+  readonly program?: Program;
+  readonly plan?: Plan;
+  /** Блок автора общий для всего сайта, но подпись у направлений своя. */
+  readonly author?: Author;
   readonly faq: Faq;
   readonly finalCta: FinalCta;
 }

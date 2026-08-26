@@ -1,23 +1,28 @@
 ---
-import { site } from '../config/site';
 import { startUrl } from '../lib/leadLink';
+import { featuredTier } from '../lib/offer';
 
 /**
  * Закреплённая панель внизу экрана — только на мобильном.
  *
- * До 60% глубины страницы показывает бесплатную ступень, после — покупку.
+ * До 60% глубины страницы показывает бесплатную ступень, после — подписку.
  * Логика та же, что и у правила размещения CTA: цену человек видит тогда,
  * когда уже прочитал, за что она.
+ *
+ * Пока ссылки оплаты нет, вторая кнопка не рендерится вовсе: подменять
+ * бесплатный призыв на такой же бесплатный, но с другой подписью, — обман
+ * ради анимации.
  */
 
 interface Props {
-  /** Ссылка на оплату. Обычно премиум-тариф. */
-  checkoutHref: string;
   /** Сегмент страницы: едет с человеком до самого бота. */
   segment?: string;
 }
 
-const { checkoutHref, segment } = Astro.props;
+const { segment } = Astro.props;
+
+const featured = featuredTier(segment);
+const showSales = featured.hasCheckout;
 ---
 
 <div class="sticky" data-sticky-cta hidden>
@@ -25,15 +30,19 @@ const { checkoutHref, segment } = Astro.props;
     Первый шаг бесплатно
   </a>
 
-  <a
-    class="sticky__btn sticky__btn--sales"
-    href={checkoutHref}
-    data-cta="sticky_sales"
-    data-cta-kind="sales"
-    hidden
-  >
-    Получить гайд — {site.pricing.premium}
-  </a>
+  {
+    showSales && (
+      <a
+        class="sticky__btn sticky__btn--sales"
+        href={featured.href}
+        data-cta="sticky_sales"
+        data-cta-kind="sales"
+        hidden
+      >
+        {featured.ctaLabel}
+      </a>
+    )
+  }
 </div>
 
 <style>
@@ -107,13 +116,16 @@ const { checkoutHref, segment } = Astro.props;
       const scrollable = document.documentElement.scrollHeight - window.innerHeight;
       // Короткая страница целиком помещается в экран — считаем её прочитанной.
       const depth = scrollable > 0 ? window.scrollY / scrollable : 1;
+      // Продажной кнопки может не быть вовсе — пока не заведена оплата.
+      if (!sales) return;
+
       const showSales = depth >= SALES_THRESHOLD;
 
       if (showSales === salesShown) return;
       salesShown = showSales;
 
       free?.toggleAttribute('hidden', showSales);
-      sales?.toggleAttribute('hidden', !showSales);
+      sales.toggleAttribute('hidden', !showSales);
     };
 
     panel.removeAttribute('hidden');

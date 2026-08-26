@@ -23,8 +23,13 @@ if (!existsSync(ROOT)) {
 
 /** Адреса без слеша и короткие ссылки для рекламы. Значения — как в render.yaml. */
 const REDIRECTS = new Map([
+  ['/beg', '/beg/'],
   ['/komfort', '/komfort/'],
   ['/sila', '/sila/'],
+  ['/son', '/son/'],
+  ['/zaryadka', '/zaryadka/'],
+  ['/samomassazh', '/samomassazh/'],
+  ['/massazh', '/massazh/'],
   ['/start', '/start/'],
   ['/demo', '/demo/'],
   ['/a', '/komfort/'],

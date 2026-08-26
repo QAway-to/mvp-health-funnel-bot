@@ -1,119 +1,185 @@
 ---
-import { landingA } from '../content/landing-a';
-import { landingB } from '../content/landing-b';
+import Cta from '../components/Cta.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Subscription from '../components/Subscription.astro';
+import Testimonials from '../components/Testimonials.astro';
+import { site } from '../config/site';
+import { ctaLabels } from '../content/cta';
+import { directions, liveDirections, soonDirections } from '../content/directions';
+import { hubNav } from '../content/nav';
+import { testimonialsFor } from '../content/testimonials';
+import { startUrl } from '../lib/leadLink';
 import Landing from '../layouts/Landing.astro';
 
 /**
- * Развилка между двумя лендингами. В хендоффе этой страницы нет —
- * она собрана из тех же токенов и нужна только для прямых заходов на корень.
- * Рекламный трафик ведётся сразу на /komfort/ или /sila/.
+ * Хаб направлений — пункт плана П14 («мини-сайт на все продукты»).
+ *
+ * Раньше на корне стояла развилка двух беговых лендингов. Бег переехал на
+ * `/beg/`, а корень собирает все направления Федерации: и открытые, и те,
+ * что заявлены планом и ещё готовятся.
+ *
+ * Список берётся из реестра, а не пишется здесь руками: открылось
+ * направление — карточка появилась и на главной, и в блоке подписки.
  */
 const meta = {
-  title: 'Естественная техника бега — онлайн-гайд',
+  title: 'Федерация здоровья — направления здорового образа жизни',
   description:
-    'Два пути к одному гайду: «Комфортный бег» — если хотите бегать легко и в удовольствие, «Сила и выносливость» — если уже тренируетесь и хотите встроить бег в план.',
+    'Бег, сон, зарядка, самомассаж, массаж — и ещё шесть направлений в работе. Одна подписка на всё, первый шаг бесплатно.',
   ogImage: '/img/silhouettes.jpg',
 };
 
-const options = [
-  {
-    href: '/komfort/',
-    image: landingA.hero.image,
-    brand: landingA.brand,
-    title: 'Хочу бегать легко и в удовольствие',
-    text: 'Четыре привычки, из которых складывается комфорт, и техника, которая их ставит. Спокойно, без километров через силу.',
-  },
-  {
-    href: '/sila/',
-    image: landingB.hero.image,
-    brand: landingB.brand,
-    title: 'Хочу выносливость, не потеряв силу',
-    text: 'Механика шага по фазам и план на 21 день, чтобы бег работал на силовую, а не против неё.',
-  },
-];
+const liveCount = liveDirections.length;
+const totalCount = directions.length;
+
+/* Тон следующей секции зависит от того, покажутся ли отзывы: иначе два
+   одинаковых фона встанут подряд. */
+const hasTestimonials = testimonialsFor('all').length > 0;
 ---
 
 <Landing meta={meta} path="/">
-  <main class="chooser">
-    <div class="chooser__intro container">
-      <p class="kicker">Онлайн-гайд по естественной технике бега</p>
-      <h1 class="chooser__title">С чего у вас начинается бег?</h1>
-      <p class="chooser__lead">
-        Гайд один, разговор разный. Выберите ситуацию, которая ближе.
-      </p>
-    </div>
+  <SiteHeader brand={site.brand} nav={hubNav} segment="home" />
 
-    <div class="chooser__grid container">
-      {
-        options.map((option) => (
-          <a class="option" href={option.href}>
-            <img class="option__image" src={option.image} alt="" aria-hidden="true" />
-            <span class="option__scrim" />
-            <span class="option__body">
-              <span class="option__brand">{option.brand}</span>
-              <span class="option__title">{option.title}</span>
-              <span class="option__text">{option.text}</span>
-              <span class="option__action">Смотреть →</span>
-            </span>
-          </a>
-        ))
-      }
-    </div>
+  <main>
+    <section class="intro" data-section="hub_intro">
+      <div class="container intro__inner">
+        <p class="kicker">Федерация здоровья</p>
+        <h1 class="intro__title">Здоровье собирается из привычек, а не из курсов</h1>
+        <p class="intro__lead">
+          Сон тянет за собой утро, утро — нагрузку, нагрузка — восстановление. Поэтому
+          направлений одиннадцать, а подписка одна: браться за них по очереди можно,
+          покупать по отдельности — незачем.
+        </p>
+
+        <div class="intro__actions">
+          <Cta kind="primary" href={startUrl('home')} placement="hub_hero">{ctaLabels.free}</Cta>
+          <Cta kind="secondary" href="#directions" placement="hub_directions">
+            Смотреть направления
+          </Cta>
+        </div>
+      </div>
+    </section>
+
+    <section id="directions" class="section section--alt" data-section="directions">
+      <div class="container stack">
+        <p class="kicker">Направления</p>
+        <h2 class="h2">Открыто {liveCount} из {totalCount}</h2>
+
+        <div class="cards">
+          {
+            liveDirections.map((direction) => (
+              <a class="card" href={direction.href}>
+                {direction.image && (
+                  <img class="card__image" src={direction.image} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                )}
+                <span class="card__scrim" />
+                <span class="card__body">
+                  <span class="card__title">{direction.title}</span>
+                  <span class="card__text">{direction.promise}</span>
+                  <span class="card__action">Смотреть →</span>
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--base" data-section="directions_soon">
+      <div class="container stack">
+        <p class="kicker">Готовятся</p>
+        <h2 class="h2">Ещё {soonDirections.length} направлений в работе</h2>
+        <p class="soon__lead">
+          Они заявлены в плане Федерации и откроются подписчикам без доплаты. У части
+          из них страница уже готова — материал дописывается. Порядок зависит от того,
+          чего просят чаще: написать об этом можно в боте.
+        </p>
+
+        <ul class="soon">
+          {
+            soonDirections.map((direction) => (
+              <li class="soon__item">
+                {direction.href ? (
+                  <a class="soon__title soon__title--link" href={direction.href}>
+                    {direction.title} →
+                  </a>
+                ) : (
+                  <span class="soon__title">{direction.title}</span>
+                )}
+                <span class="soon__text">{direction.promise}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    {hasTestimonials && <Testimonials tone="alt" segment="all" />}
+
+    <Subscription tone={hasTestimonials ? 'base' : 'alt'} segment="home" />
   </main>
+
+  <SiteFooter />
 </Landing>
 
 <style>
-  .chooser {
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 48px;
-    padding-block: 64px;
+  .intro {
+    padding-block: clamp(56px, 9vw, 112px);
   }
 
-  .chooser__intro {
+  .intro__inner {
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
+    align-items: flex-start;
   }
 
-  .chooser__title {
+  .intro__title {
     font-family: var(--font-display);
     font-size: clamp(34px, 5.4vw, 64px);
     font-weight: 800;
-    line-height: 1;
+    line-height: 1.02;
     letter-spacing: -0.03em;
+    max-width: 20ch;
   }
 
-  .chooser__lead {
-    font-size: clamp(18px, 2.2vw, 24px);
-    line-height: 1.45;
+  .intro__lead {
+    font-size: clamp(18px, 2.2vw, 23px);
+    line-height: 1.5;
     color: var(--text-lead);
-    max-width: 46ch;
+    max-width: 58ch;
   }
 
-  .chooser__grid {
+  .intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 8px;
+  }
+
+  /* Открытые направления — карточки с фотографией.
+     Минимум 280px: при трёх колонках карточка не должна ужиматься до полоски. */
+  .cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
-    gap: 28px;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
   }
 
-  .option {
+  .card {
     position: relative;
     display: block;
-    min-height: 420px;
+    min-height: 340px;
     overflow: hidden;
     border: 1px solid var(--border-soft);
     color: var(--text);
   }
 
-  .option:hover {
+  .card:hover {
     border-color: var(--accent-text);
     color: var(--text);
   }
 
-  .option__image {
+  .card__image {
     position: absolute;
     inset: 0;
     width: 100%;
@@ -123,60 +189,97 @@ const options = [
     transition: transform 300ms ease;
   }
 
-  .option:hover .option__image {
+  .card:hover .card__image {
     transform: scale(1.03);
   }
 
-  .option__scrim {
+  .card__scrim {
     position: absolute;
     inset: 0;
     background: linear-gradient(
       180deg,
       rgba(247, 242, 231, 0) 0%,
-      rgba(247, 242, 231, 0.6) 38%,
-      rgba(247, 242, 231, 0.99) 60%
+      rgba(247, 242, 231, 0.62) 36%,
+      rgba(247, 242, 231, 0.99) 58%
     );
   }
 
-  .option__body {
+  .card__body {
     position: absolute;
     inset: auto 0 0 0;
-    padding: 32px;
+    padding: 28px;
     display: flex;
     flex-direction: column;
-    gap: 12px;
+    gap: 10px;
   }
 
-  .option__brand {
+  .card__title {
     font-family: var(--font-display);
-    font-size: 13px;
-    font-weight: 700;
-    letter-spacing: 0.2em;
-    text-transform: uppercase;
-    color: var(--accent-text);
-  }
-
-  .option__title {
-    font-family: var(--font-display);
-    font-size: 28px;
+    font-size: 26px;
     font-weight: 800;
     line-height: 1.1;
-    /* Заголовок карточки — не heading, поэтому глобальное правило его
-       не покрывает: балансируем строки здесь, иначе предлог повисает. */
     text-wrap: balance;
   }
 
-  .option__text {
-    font-size: 17px;
-    line-height: 1.55;
+  .card__text {
+    font-size: 16px;
+    line-height: 1.5;
     color: var(--text-secondary);
   }
 
-  .option__action {
+  .card__action {
     font-family: var(--font-display);
-    font-size: 17px;
+    font-size: 16px;
     font-weight: 800;
     color: var(--accent-text);
-    padding-top: 8px;
+    padding-top: 4px;
+  }
+
+  .soon__lead {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--text-lead);
+    max-width: 62ch;
+  }
+
+  /* Готовящиеся направления — списком, а не карточками: они не входят в
+     подписку, и выглядеть наравне с открытыми не должны. Ссылка появляется
+     только у тех, где страница уже есть: она собирает заявки в бота. */
+  .soon {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px 32px;
+  }
+
+  .soon__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .soon__title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .soon__title--link {
+    color: var(--accent-text);
+  }
+
+  .soon__title--link:hover {
+    color: var(--accent-hover);
+  }
+
+  .soon__text {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-muted);
   }
 </style>

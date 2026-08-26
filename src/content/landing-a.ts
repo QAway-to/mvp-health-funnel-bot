@@ -3,7 +3,7 @@ import { nav } from './nav';
 import type { LandingContent } from './types';
 
 /** Лендинг А — «Комфортный бег». Аудитория хочет бегать легко, обращение на «вы». */
-export const landingA: LandingContent = {
+export const landingA = {
   slug: 'komfort',
   brand: 'Комфортный бег',
 
@@ -22,6 +22,8 @@ export const landingA: LandingContent = {
     lead: 'Комфорт складывается из четырёх привычек: маршрута, приземления, обуви и объёма. Все четыре ставятся техникой — без зала, снаряжения и километров через силу.',
     image: '/img/silhouettes.jpg',
     trust: [`Автор — ${site.author.name}`],
+    /* Демо-урок про технику бега — он по теме только здесь. */
+    secondary: { label: 'Посмотреть демо-урок', href: '/demo/', placement: 'hero_demo' },
   },
 
   mirror: {
@@ -140,7 +142,7 @@ export const landingA: LandingContent = {
       },
       {
         title: 'Формат',
-        text: `${site.pricing.format}. 5–10 минут в день, без зала и снаряжения.`,
+        text: 'Короткие уроки с разбором, к которым возвращаются. 5–10 минут в день, без зала и снаряжения.',
       },
     ],
   },
@@ -193,57 +195,6 @@ export const landingA: LandingContent = {
     ],
   },
 
-  pricing: {
-    kicker: 'Доступ',
-    title: 'Три варианта: сам, с разбором или с сопровождением',
-    plans: [
-      {
-        id: 'base',
-        label: 'База',
-        price: site.pricing.base,
-        text: 'Весь гайд целиком, в правильном порядке. Для тех, кто готов идти сам.',
-        features: [
-          `4 блока и ${site.pricing.lessonsCount} уроков`,
-          'Дозировки по грунту и погоде',
-          'Подбор обуви и разбор ошибок',
-          `Доступ на ${site.pricing.accessPeriod}`,
-        ],
-        ctaLabel: 'Выбрать базу',
-        href: site.links.payBase,
-      },
-      {
-        id: 'premium',
-        label: 'Премиум',
-        price: site.pricing.premium,
-        text: 'Всё из базы плюс живая обратная связь: я смотрю ваш шаг и говорю, где остановиться.',
-        features: [
-          'Разбор техники по вашему видео',
-          'Ответы на вопросы на всём пути',
-          'Протокол на «что-то беспокоит»',
-          `${site.pricing.bonus} за оформление сегодня`,
-        ],
-        ctaLabel: 'Получить премиум',
-        href: site.links.payPremium,
-        badge: 'РЕКОМЕНДУЮ',
-      },
-      {
-        id: 'pro',
-        label: 'Сопровождение',
-        price: site.pricing.pro,
-        text: 'Восемь недель рядом: смотрю, как вы бежите, и правлю план. Веду немного людей одновременно.',
-        features: [
-          'Восемь разборов вашего видео',
-          'План правится под ваш темп',
-          'Личный чат: ответ в течение дня',
-          'Набор ограничен',
-        ],
-        ctaLabel: 'Пойти с сопровождением',
-        href: site.links.payPro,
-      },
-    ],
-    payment: `Оплата: ${site.pricing.paymentMethods}`,
-  },
-
   faq: {
     kicker: 'Частые вопросы',
     title: 'Пять причин отложить — и что за ними стоит',
@@ -270,7 +221,8 @@ export const landingA: LandingContent = {
       },
       {
         question: '«Дорого»',
-        answer: `${site.pricing.premium} — это ${site.pricing.comparison}. Дороже обходится ещё один год, начатый и брошенный на второй неделе.`,
+        answer:
+          'Подписка одна на все направления и отменяется в любой момент. Дороже обходится ещё один год, начатый и брошенный на второй неделе.',
       },
     ],
   },
@@ -278,10 +230,7 @@ export const landingA: LandingContent = {
   finalCta: {
     title: 'Первый шаг можно сделать сегодня',
     lead: 'Пять минут босиком по траве — бесплатно и без меня. Весь путь по порядку, с дозировками и разбором — в гайде.',
-    ctaLabel: `Получить доступ — ${site.pricing.premium}`,
-    href: site.links.payPremium,
-    note: `${site.pricing.bonus} за оформление сегодня`,
     image: '/img/highfive.jpg',
     imageBrightness: 1.06,
   },
-};
+} satisfies LandingContent;

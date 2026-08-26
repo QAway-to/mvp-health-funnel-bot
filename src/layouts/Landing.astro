@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css';
+import { site } from '../config/site';
 import type { Meta } from '../content/types';
 
 interface Props {
@@ -12,6 +13,32 @@ const { meta, path } = Astro.props;
 
 const canonical = new URL(path, Astro.site);
 const ogImage = new URL(meta.ogImage, Astro.site);
+
+/**
+ * Разметка организации и сайта.
+ *
+ * Нужна, чтобы поисковик связывал страницы между собой как один сайт, а не
+ * как набор случайных документов. Ссылки на соцсети добавляются только
+ * заполненные: пустой `sameAs` хуже отсутствующего.
+ */
+const socialLinks = [site.links.telegramChannel, site.links.youtube, site.links.instagram].filter(
+  (link) => link.length > 0,
+);
+
+const organization = {
+  '@context': 'https://schema.org',
+  '@type': 'Organization',
+  name: site.brand,
+  url: new URL('/', Astro.site).href,
+  ...(socialLinks.length > 0 ? { sameAs: socialLinks } : {}),
+};
+
+/**
+ * Идентификатор контейнера подставляется внутрь строки скрипта, поэтому
+ * пропускаем только безопасный набор символов: кавычка в конфиге иначе
+ * разорвала бы код и превратила опечатку в дыру.
+ */
+const gtmId = /^[A-Za-z0-9_-]+$/.test(site.analytics.gtmId) ? site.analytics.gtmId : '';
 ---
 
 <!doctype html>
@@ -34,6 +61,19 @@ const ogImage = new URL(meta.ogImage, Astro.site);
     <meta name="twitter:card" content="summary_large_image" />
 
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(organization)} is:inline />
+
+    {
+      /* Контейнер аналитики. Пока идентификатор не задан, на страницу
+         не попадает ни одного стороннего скрипта. */
+      gtmId && (
+        <script
+          is:inline
+          set:html={`(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src='https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);})(window,document,'script','dataLayer','${gtmId}');`}
+        />
+      )
+    }
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />

@@ -18,7 +18,17 @@ import { routes } from '../config/site';
  * строки и уходит в чужой домен, поэтому в deep link попадает только то,
  * что мы сами и завели.
  */
-export const LEAD_SEGMENTS = ['komfort', 'sila', 'demo', 'home'] as const;
+export const LEAD_SEGMENTS = [
+  'komfort',
+  'sila',
+  'beg',
+  'son',
+  'zaryadka',
+  'samomassazh',
+  'massazh',
+  'demo',
+  'home',
+] as const;
 
 export type LeadSegment = (typeof LEAD_SEGMENTS)[number];
 

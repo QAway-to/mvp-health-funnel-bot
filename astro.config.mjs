@@ -1,10 +1,15 @@
 import sitemap from '@astrojs/sitemap';
 import { defineConfig } from 'astro/config';
 
-// Static multi-page build: `/` chooser, `/bez-boli/` (A), `/sila/` (B).
+// Статическая многостраничная сборка мини-сайта Федерации.
 // Output goes to `dist/`, которую отдаёт Render.
 export default defineConfig({
-  site: process.env.PUBLIC_SITE_URL || 'https://beg.example.com',
+  // Адрес, от которого считаются canonical, OG-теги и sitemap.
+  // По умолчанию — живой адрес на Render: несуществующий домен в canonical
+  // сообщает поисковику, что настоящая страница живёт где-то ещё, а мессенджер
+  // не может забрать превью-картинку. Появится свой домен — задать
+  // PUBLIC_SITE_URL в переменных окружения Render, менять код не нужно.
+  site: process.env.PUBLIC_SITE_URL || 'https://mvp-running-landings.onrender.com',
   output: 'static',
   integrations: [sitemap()],
 

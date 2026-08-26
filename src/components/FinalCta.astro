@@ -1,12 +1,23 @@
 ---
 import Cta from './Cta.astro';
+import { featuredTier } from '../lib/offer';
 import type { FinalCta } from '../content/types';
+
+/**
+ * Последний экран. Куда ведёт кнопка и что на ней написано, решает
+ * src/lib/offer.ts: пока оплаты нет, финальный призыв зовёт на бесплатную
+ * ступень, а не на несуществующий чекаут.
+ */
 
 interface Props {
   finalCta: FinalCta;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
 }
 
-const { finalCta } = Astro.props;
+const { finalCta, segment } = Astro.props;
+
+const featured = featuredTier(segment);
 ---
 
 <section class="final" data-section="final">
@@ -26,8 +37,10 @@ const { finalCta } = Astro.props;
     <p class="final__lead">{finalCta.lead}</p>
 
     <div class="final__actions">
-      <Cta kind="sales" href={finalCta.href} placement="final">{finalCta.ctaLabel}</Cta>
-      <p class="final__note">{finalCta.note}</p>
+      <Cta kind={featured.kind} href={featured.href} placement="final">
+        {featured.ctaLabel}
+      </Cta>
+      {finalCta.note && <p class="final__note">{finalCta.note}</p>}
     </div>
   </div>
 </section>

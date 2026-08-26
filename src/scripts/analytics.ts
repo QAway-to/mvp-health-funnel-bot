@@ -1,65 +1,104 @@
 /**
- * Аналитика лендингов: два события из хендоффа.
+ * Аналитика воронки. Подключается один раз на всех страницах.
  *
- * - `cta_click`  — клик по любой кнопке с `data-cta="<место>"`
- *   (hero / header / price_base / price_premium / final).
- * - `scroll_depth` — первое появление секции с `data-section="<имя>"` в вьюпорте.
+ * Собственной отправки здесь нет: события уходят через `track()`, который
+ * складывает их в `dataLayer` и `gtag`. Раньше в этом файле лежала своя копия
+ * отправщика — два списка событий расходились, и `checkout_started` из
+ * мобильной панели попадал в один поток, а `cta_click` в другой.
  *
- * Провайдер не зашит: событие уходит в `dataLayer` (GTM) и в `gtag`, если они есть.
- * Пока счётчик не подключён, вызовы просто ничего не делают.
+ * Что снимается:
+ *   cta_click     — клик по любой кнопке с `data-cta`;
+ *   scroll_depth  — первое появление секции (`data-section`) и проценты
+ *                   прокрутки 25/50/75/100;
+ *   view_hero     — первый экран увидели;
+ *   pricing_viewed — дошли до блока подписки.
+ *
+ * Пока счётчик не подключён, всё это молча никуда не уходит — см. layouts/Landing.astro.
  */
 
-type EventPayload = Record<string, string>;
-
-declare global {
-  interface Window {
-    dataLayer?: unknown[];
-    gtag?: (...args: unknown[]) => void;
-  }
-}
-
-const track = (event: string, payload: EventPayload): void => {
-  window.dataLayer?.push({ event, ...payload });
-  window.gtag?.('event', event, payload);
-};
+import { observeOnce, track } from './track';
 
 const trackCtaClicks = (): void => {
   document.querySelectorAll<HTMLElement>('[data-cta]').forEach((element) => {
     element.addEventListener('click', () => {
       track('cta_click', {
         placement: element.dataset.cta ?? 'unknown',
-        label: element.textContent?.trim() ?? '',
+        kind: element.dataset.ctaKind ?? 'unknown',
+        label: element.textContent?.trim().slice(0, 80) ?? '',
       });
     });
   });
 };
 
-const trackScrollDepth = (): void => {
+/**
+ * Просмотр секций.
+ *
+ * У первого экрана и блока подписки есть собственные события: это границы
+ * воронки, и искать их в общем потоке `scroll_depth` с фильтром по имени
+ * секции неудобно.
+ */
+const SECTION_EVENTS: Record<string, 'view_hero' | 'pricing_viewed'> = {
+  hero: 'view_hero',
+  price: 'pricing_viewed',
+};
+
+const trackSections = (): void => {
   const sections = document.querySelectorAll<HTMLElement>('[data-section]');
-  if (sections.length === 0 || !('IntersectionObserver' in window)) return;
 
-  const seen = new Set<string>();
+  observeOnce(sections, 0.4, (element) => {
+    const name = (element as HTMLElement).dataset.section;
+    if (!name) return;
 
-  const observer = new IntersectionObserver(
-    (entries) => {
-      entries.forEach((entry) => {
-        if (!entry.isIntersecting) return;
+    const own = SECTION_EVENTS[name];
+    if (own) track(own, { page: document.body.dataset.page ?? location.pathname });
 
-        const name = (entry.target as HTMLElement).dataset.section;
-        if (!name || seen.has(name)) return;
+    track('scroll_depth', { section: name });
+  });
+};
 
-        seen.add(name);
-        track('scroll_depth', { section: name });
-        observer.unobserve(entry.target);
-      });
-    },
-    { threshold: 0.4 },
-  );
+/**
+ * Проценты прокрутки.
+ *
+ * Секции отвечают на вопрос «что человек увидел», проценты — «докуда дочитал».
+ * Второе сравнимо между страницами разной длины, первое нет.
+ */
+const trackScrollPercent = (): void => {
+  const marks = [25, 50, 75, 100];
+  const reached = new Set<number>();
 
-  sections.forEach((section) => observer.observe(section));
+  const update = (): void => {
+    const scrollable = document.documentElement.scrollHeight - window.innerHeight;
+    // Страница короче экрана: считаем прочитанной целиком, иначе 100% никогда
+    // не наступит и отчёт будет врать в меньшую сторону.
+    const depth = scrollable > 0 ? (window.scrollY / scrollable) * 100 : 100;
+
+    for (const mark of marks) {
+      if (depth + 0.5 < mark || reached.has(mark)) continue;
+      reached.add(mark);
+      track('scroll_depth', { percent: mark });
+    }
+
+    if (reached.size === marks.length) {
+      window.removeEventListener('scroll', onScroll);
+    }
+  };
+
+  let ticking = false;
+  const onScroll = (): void => {
+    if (ticking) return;
+    ticking = true;
+    requestAnimationFrame(() => {
+      update();
+      ticking = false;
+    });
+  };
+
+  update();
+  window.addEventListener('scroll', onScroll, { passive: true });
 };
 
 trackCtaClicks();
-trackScrollDepth();
+trackSections();
+trackScrollPercent();
 
 export {};

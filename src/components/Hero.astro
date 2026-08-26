@@ -1,13 +1,12 @@
 ---
 import Cta from './Cta.astro';
-import { routes } from '../config/site';
 import { ctaLabels } from '../content/cta';
 import { startUrl } from '../lib/leadLink';
-import type { Hero } from '../content/types';
+import type { Hero, HeroSecondary } from '../content/types';
 
 /**
  * В первом экране цены нет. Основное действие — бесплатная ступень,
- * вторичное — посмотреть демо-урок: до цены человек должен получить пользу.
+ * вторичное — узнать больше: до цены человек должен получить пользу.
  */
 
 interface Props {
@@ -17,6 +16,13 @@ interface Props {
 }
 
 const { hero, segment } = Astro.props;
+
+/* По умолчанию зовём в состав направления: демо-урок один и он про бег. */
+const secondary: HeroSecondary = hero.secondary ?? {
+  label: ctaLabels.program,
+  href: '#program',
+  placement: 'hero_program',
+};
 ---
 
 <section class="hero" data-section="hero">
@@ -37,7 +43,9 @@ const { hero, segment } = Astro.props;
 
     <div class="hero__actions">
       <Cta kind="primary" href={startUrl(segment)} placement="hero">{ctaLabels.free}</Cta>
-      <Cta kind="secondary" href={routes.demo} placement="hero_demo">{ctaLabels.demo}</Cta>
+      <Cta kind="secondary" href={secondary.href} placement={secondary.placement}>
+        {secondary.label}
+      </Cta>
     </div>
 
     <ul class="hero__trust">

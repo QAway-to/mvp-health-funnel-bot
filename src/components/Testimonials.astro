@@ -1,0 +1,168 @@
+---
+import { testimonialsFor } from '../content/testimonials';
+
+/**
+ * Отзывы участников в формате «было → стало».
+ *
+ * Секция целиком необязательна: пока у нас нет ни одного настоящего отзыва,
+ * компонент не рисует ничего. Пустая рамка с подписью «здесь будут отзывы»
+ * хуже отсутствия блока — она сообщает посетителю, что отзывов нет.
+ *
+ * Отзывы отбираются по сегменту страницы: на странице сна не место истории
+ * про бег. Сквозные (`all`) показываются везде.
+ *
+ * Фото необязательно: без него рисуется инициал. Отзыв с настоящим именем,
+ * но без карточки-заглушки читается лучше, чем силуэт вместо лица.
+ */
+
+interface Props {
+  tone: 'base' | 'alt';
+  /** Сегмент страницы: `komfort`, `sila` или слаг направления. */
+  segment: string;
+  kicker?: string;
+  title?: string;
+}
+
+const { tone, segment, kicker = 'Как это проходит у других', title = 'Было — стало' } = Astro.props;
+
+const items = testimonialsFor(segment);
+---
+
+{
+  items.length > 0 && (
+    <section id="testimonials" class={`section section--${tone}`} data-section="testimonials">
+      <div class="container stack">
+        <p class="kicker">{kicker}</p>
+        <h2 class="h2">{title}</h2>
+
+        <div class="reviews">
+          {items.map((item) => (
+            <article class="review">
+              <div class="review__head">
+                {item.photo ? (
+                  <img class="review__photo" src={item.photo} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                ) : (
+                  <span class="review__initial" aria-hidden="true">
+                    {item.name.trim().charAt(0)}
+                  </span>
+                )}
+                <span class="review__who">
+                  <span class="review__name">{item.name}</span>
+                  {item.context && <span class="review__context">{item.context}</span>}
+                </span>
+              </div>
+
+              <p class="review__line">
+                <span class="review__label">Было</span>
+                <span class="review__text">{item.before}</span>
+              </p>
+
+              <p class="review__line">
+                <span class="review__label review__label--after">Стало</span>
+                <span class="review__text">{item.after}</span>
+              </p>
+            </article>
+          ))}
+        </div>
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .reviews {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 24px;
+    align-items: stretch;
+  }
+
+  .review {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 32px;
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  .review__head {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .review__photo,
+  .review__initial {
+    width: 56px;
+    height: 56px;
+    flex: none;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  /* Инициал вместо фото: буква на плашке акцента, а не силуэт-заглушка. */
+  .review__initial {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--card-primary);
+    border: 1px solid var(--accent);
+    color: var(--accent-text);
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+  }
+
+  .review__who {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .review__name {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .review__context {
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+
+  /* «Было» и «Стало» — подпись и текст в одной строке на десктопе,
+     в столбец на узком экране: подпись короткая, а текст длинный. */
+  .review__line {
+    display: grid;
+    grid-template-columns: 62px 1fr;
+    gap: 4px 14px;
+    align-items: baseline;
+  }
+
+  @media (max-width: 479px) {
+    .review__line {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .review__label {
+    font-family: var(--font-display);
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.16em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .review__label--after {
+    color: var(--accent-text);
+  }
+
+  .review__text {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-card);
+  }
+</style>
