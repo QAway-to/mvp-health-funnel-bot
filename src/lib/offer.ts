@@ -11,7 +11,7 @@
  */
 
 import { site } from '../config/site';
-import { startUrl } from './leadLink';
+import { isLeadSegment, startUrl } from './leadLink';
 
 /**
  * Заполнено ли поле конфига.
@@ -38,10 +38,21 @@ export const priceLabel = (): string => {
 
 /**
  * Куда ведёт кнопка покупки.
- * Нет чекаута — ведём на бесплатную ступень с меткой сегмента.
+ *
+ * Нет чекаута — ведём на бесплатную ступень с меткой сегмента. Есть чекаут —
+ * метку стараемся не терять: имя параметра задаётся в конфиге, и пока оно
+ * пустое, ссылка уходит как есть. Выдумывать параметр за чужой сервис нельзя —
+ * лишний хвост в адресе может просто сломать оплату.
  */
-export const checkoutHref = (segment?: string): string =>
-  hasCheckout() ? site.subscription.payUrl : startUrl(segment);
+export const checkoutHref = (segment?: string): string => {
+  const { payUrl, trackingParam } = site.subscription;
+
+  if (!hasCheckout()) return startUrl(segment);
+  if (!isFilled(trackingParam) || !isLeadSegment(segment)) return payUrl;
+
+  const separator = payUrl.includes('?') ? '&' : '?';
+  return `${payUrl}${separator}${encodeURIComponent(trackingParam)}=${encodeURIComponent(segment)}`;
+};
 
 /**
  * Тип кнопки для компонента Cta.
