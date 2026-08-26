@@ -18,8 +18,9 @@ import Landing from '../layouts/Landing.astro';
  */
 
 const meta = {
-  title: 'Первый шаг бесплатно — 7-дневный старт по естественной технике бега',
-  description: `${site.lead.promise}. Без оплаты: разбор первых семи дней, короткие видео и чек-лист.`,
+  title: 'Первый шаг бесплатно — чек-лист и ответы в Telegram',
+  description:
+    'Бесплатная ступень Федерации здоровья: чек-лист, ответы по материалам направлений и короткий разбор по вашей теме. Без оплаты.',
   ogImage: '/img/barefoot-step.jpg',
 };
 
@@ -34,7 +35,7 @@ const botLink = botUrl(site.lead.telegramUrl);
 ---
 
 <Landing meta={meta} path={routes.start}>
-  <SiteHeader brand="Комфортный бег" nav={standaloneNav} showCta={false} />
+  <SiteHeader brand={site.brand} nav={standaloneNav} showCta={false} />
 
   <main class="start">
     <div class="container start__inner">
@@ -61,11 +62,12 @@ const botLink = botUrl(site.lead.telegramUrl);
         }
 
         <p class="start__note">Бесплатно и без оплаты. Отписаться можно в одно нажатие.</p>
+        <p class="start__scope">{leadMagnet.scope}</p>
       </div>
 
       <p class="start__back">
-        Уже понимаете, чего хотите? <a href={routes.komfort}>Комфортный бег</a> или
-        <a href={routes.sila}>Сила и выносливость</a>.
+        Уже понимаете, чего хотите? <a href={routes.home}>Все направления</a> —
+        сон, зарядка, бег, самомассаж и массаж.
       </p>
     </div>
   </main>
@@ -162,6 +164,15 @@ const botLink = botUrl(site.lead.telegramUrl);
   .start__back {
     font-size: 16px;
     color: var(--text-muted);
+  }
+
+  /* Что бот умеет сегодня: строка про границы должна читаться, но не спорить
+     с обещанием — поэтому уже колонки и приглушённее основного текста. */
+  .start__scope {
+    font-size: 15px;
+    line-height: 1.55;
+    color: var(--text-muted);
+    max-width: 52ch;
   }
 
   .start__todo {

@@ -4,7 +4,7 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import Subscription from '../components/Subscription.astro';
 import Testimonials from '../components/Testimonials.astro';
-import { routes, site } from '../config/site';
+import { site } from '../config/site';
 import { ctaLabels } from '../content/cta';
 import { directions, liveDirections, soonDirections } from '../content/directions';
 import { hubNav } from '../content/nav';
@@ -53,7 +53,9 @@ const hasTestimonials = testimonialsFor('all').length > 0;
 
         <div class="intro__actions">
           <Cta kind="primary" href={startUrl('home')} placement="hub_hero">{ctaLabels.free}</Cta>
-          <Cta kind="secondary" href={routes.demo} placement="hub_demo">{ctaLabels.demo}</Cta>
+          <Cta kind="secondary" href="#directions" placement="hub_directions">
+            Смотреть направления
+          </Cta>
         </div>
       </div>
     </section>

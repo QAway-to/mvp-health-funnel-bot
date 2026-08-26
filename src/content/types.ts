@@ -20,6 +20,14 @@ export interface Meta {
   readonly ogImage: string;
 }
 
+/** Вторичная кнопка: «узнать больше», без обязательств. */
+export interface HeroSecondary {
+  readonly label: string;
+  readonly href: string;
+  /** Место в аналитике. */
+  readonly placement: string;
+}
+
 export interface Hero {
   readonly kicker: string;
   readonly title: string;
@@ -28,6 +36,15 @@ export interface Hero {
   /** Затемнение фонового фото, если в макете задан filter: brightness(). */
   readonly imageBrightness?: number;
   readonly trust: readonly string[];
+  /**
+   * Куда ведёт вторая кнопка. Не задана — предлагаем посмотреть состав
+   * направления.
+   *
+   * Демо-урок сюда ставят только там, где он по теме: ролик у нас один и он
+   * про технику бега, а на странице сна кнопка «посмотреть демо-урок» вела бы
+   * человека к разбору стопы.
+   */
+  readonly secondary?: HeroSecondary;
 }
 
 export interface MirrorCard {

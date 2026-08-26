@@ -12,9 +12,8 @@ export const nav: readonly NavLink[] = [
  * поэтому ведём на сами направления.
  */
 export const standaloneNav: readonly NavLink[] = [
-  { label: 'Направления', href: '/' },
-  { label: 'Комфортный бег', href: '/komfort/' },
-  { label: 'Сила и выносливость', href: '/sila/' },
+  { label: 'Все направления', href: '/' },
+  { label: 'Бег', href: '/beg/' },
 ];
 
 /** Навигация хаба: якоря его собственных секций. */

@@ -25,6 +25,8 @@ export const landingB = {
     trust: [
       'Цель к 21-му дню: 5 км легко, и наутро ноги свежие',
     ],
+    /* Демо-урок про технику бега — он по теме только здесь. */
+    secondary: { label: 'Посмотреть демо-урок', href: '/demo/', placement: 'hero_demo' },
   },
 
   mirror: {

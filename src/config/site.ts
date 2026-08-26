@@ -12,8 +12,11 @@
 export type LeadDestination = 'telegram_bot' | 'email' | 'both';
 
 export const site = {
-  /** Базовый URL для canonical и OG-тегов. Переопределяется PUBLIC_SITE_URL. */
-  url: 'https://beg.example.com',
+  /**
+   * Базовый URL для canonical и OG-тегов. Значение дублирует astro.config.mjs
+   * и переопределяется переменной окружения PUBLIC_SITE_URL.
+   */
+  url: 'https://mvp-running-landings.onrender.com',
 
   /** Имя проекта: шапка хаба, футер, юридическая строка. */
   brand: 'Федерация здоровья',
