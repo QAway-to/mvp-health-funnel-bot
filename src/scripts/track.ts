@@ -18,6 +18,7 @@ declare global {
 /** События воронки. Список закрытый, чтобы имена не разъезжались по файлам. */
 export type TrackEvent =
   | 'view_hero'
+  | 'cta_click'
   | 'click_free_cta'
   | 'quiz_start'
   | 'quiz_complete'

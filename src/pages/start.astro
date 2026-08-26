@@ -78,6 +78,8 @@ const botLink = botUrl(site.lead.telegramUrl);
 <script>
   import { botUrl } from '../lib/leadLink';
 
+  import { track } from '../scripts/track';
+
   /**
    * Переносим сегмент из адреса страницы в deep link бота.
    *
@@ -94,6 +96,12 @@ const botLink = botUrl(site.lead.telegramUrl);
   if (link && segment) {
     link.href = botUrl(link.href, segment);
   }
+
+  /* Заявка = уход в бота. Дальше человек уже вне сайта, и это последнее
+     событие, которое мы можем снять: без него воронка обрывается на переходе. */
+  link?.addEventListener('click', () => {
+    track('lead_submitted', { segment: segment ?? 'site' });
+  });
 </script>
 
 <style>
