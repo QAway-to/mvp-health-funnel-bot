@@ -7,6 +7,7 @@ import { site, routes } from '../config/site';
 import { landingA } from '../content/landing-a';
 import { standaloneNav } from '../content/nav';
 import { startUrl } from '../lib/leadLink';
+import { checkoutHref, checkoutKind, checkoutLabel, isFilled } from '../lib/offer';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -41,7 +42,7 @@ const { mechanism } = landingA;
         <VideoPlayer
           url={site.demo.videoUrl}
           poster={site.demo.poster}
-          title={site.demo.title.startsWith('{') ? '' : site.demo.title}
+          title={isFilled(site.demo.title) ? site.demo.title : ''}
         />
 
         <div class="demo__grid">
@@ -79,8 +80,8 @@ const { mechanism } = landingA;
           <Cta kind="primary" href={startUrl('demo')} placement="demo_free">
             Забрать первый шаг бесплатно
           </Cta>
-          <Cta kind="sales" href={site.links.payPremium} placement="demo_sales">
-            Получить гайд — {site.pricing.premium}
+          <Cta kind={checkoutKind()} href={checkoutHref('demo')} placement="demo_sales">
+            {checkoutLabel()}
           </Cta>
         </div>
 

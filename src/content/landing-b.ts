@@ -3,7 +3,7 @@ import { nav } from './nav';
 import type { LandingContent } from './types';
 
 /** Лендинг Б — «Сила и выносливость». Те, кто уже тренируется, обращение на «ты». */
-export const landingB: LandingContent = {
+export const landingB = {
   slug: 'sila',
   brand: 'Сила и выносливость',
 
@@ -174,7 +174,7 @@ export const landingB: LandingContent = {
       },
       {
         title: 'Формат',
-        text: `${site.pricing.format}. 5–10 минут в день, без зала и снаряги.`,
+        text: 'Короткие уроки с разбором, к которым возвращаешься. 5–10 минут в день, без зала и снаряги.',
       },
     ],
   },
@@ -220,57 +220,6 @@ export const landingB: LandingContent = {
     ],
   },
 
-  pricing: {
-    kicker: 'Доступ',
-    title: 'Три варианта: сам, с разбором или с сопровождением',
-    plans: [
-      {
-        id: 'base',
-        label: 'База',
-        price: site.pricing.base,
-        text: 'Весь гайд и план на 21 день. Для тех, кто привык разбираться сам.',
-        features: [
-          `4 блока и ${site.pricing.lessonsCount} уроков`,
-          'Карта недели и план на 21 день',
-          'Подбор обуви и разбор ошибок',
-          `Доступ на ${site.pricing.accessPeriod}`,
-        ],
-        ctaLabel: 'Выбрать базу',
-        href: site.links.payBase,
-      },
-      {
-        id: 'premium',
-        label: 'Премиум',
-        price: site.pricing.premium,
-        text: 'Всё из базы плюс разбор твоего шага по видео и корректировка плана под твои тренировки.',
-        features: [
-          'Разбор техники по твоему видео',
-          'Бег внутри твоей недели',
-          'Протокол на «что-то беспокоит»',
-          `${site.pricing.bonus} за оформление сегодня`,
-        ],
-        ctaLabel: 'Получить премиум',
-        href: site.links.payPremium,
-        badge: 'РЕКОМЕНДУЮ',
-      },
-      {
-        id: 'pro',
-        label: 'Сопровождение',
-        price: site.pricing.pro,
-        text: 'Восемь недель рядом: каждую неделю смотрю твоё видео и правлю план. Веду немного людей.',
-        features: [
-          'Восемь разборов твоего видео',
-          'План правится под твой темп',
-          'Личный чат: ответ в течение дня',
-          'Набор ограничен',
-        ],
-        ctaLabel: 'Пойти с сопровождением',
-        href: site.links.payPro,
-      },
-    ],
-    payment: `Оплата: ${site.pricing.paymentMethods}`,
-  },
-
   faq: {
     kicker: 'Частые вопросы',
     title: 'Шесть возражений — и что за ними стоит',
@@ -302,7 +251,8 @@ export const landingB: LandingContent = {
       },
       {
         question: '«Дорого»',
-        answer: `${site.pricing.premium} — это ${site.pricing.comparison}. Дороже обходится ещё один год, брошенный на второй неделе.`,
+        answer:
+          'Подписка одна на все направления и отменяется в любой момент. Дороже обходится ещё один год, брошенный на второй неделе.',
       },
     ],
   },
@@ -310,10 +260,7 @@ export const landingB: LandingContent = {
   finalCta: {
     title: 'Не бегай больше — бегай правильно',
     lead: 'Десять минут спокойно, шаг под тело, без секундомера — можно сегодня вечером. Весь порядок на 21 день — в гайде.',
-    ctaLabel: `Получить доступ — ${site.pricing.premium}`,
-    href: site.links.payPremium,
-    note: `${site.pricing.bonus} за оформление сегодня`,
     image: '/img/splash.jpg',
     imageBrightness: 1.06,
   },
-};
+} satisfies LandingContent;

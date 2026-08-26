@@ -101,10 +101,14 @@ const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.p
       align-items: center;
     }
 
+    /* Длинное имя («Федерация здоровья») в одну строку рядом с кнопкой
+       не помещается и выталкивает её за экран: колонка grid-а по умолчанию
+       не сжимается ниже min-content. Разрешаем перенос и сжатие. */
     .header__brand {
       grid-area: brand;
       font-size: 15px;
-      white-space: nowrap;
+      min-width: 0;
+      overflow-wrap: anywhere;
     }
 
     .header__nav {

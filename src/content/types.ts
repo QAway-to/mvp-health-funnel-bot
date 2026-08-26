@@ -1,4 +1,12 @@
-/** Структура контента лендинга. Оба лендинга (А и Б) описываются одной схемой. */
+/**
+ * Структура контента лендинга.
+ *
+ * Одной схемой описываются и два беговых лендинга из хендоффа, и страницы
+ * остальных направлений. Разница в том, что у направления материала меньше:
+ * поэтому всё, кроме первого экрана, вопросов и финального призыва —
+ * необязательно. Секция без данных просто не рисуется, а не показывает
+ * пустую рамку.
+ */
 
 export interface NavLink {
   readonly label: string;
@@ -110,29 +118,17 @@ export interface Author {
   readonly metrics: readonly Metric[];
 }
 
-export interface PricingPlan {
-  /** Стабильный ключ для аналитики: попадёт в `placement` кнопки. */
-  readonly id: string;
-  readonly label: string;
-  readonly price: string;
-  readonly text: string;
-  readonly features: readonly string[];
-  readonly ctaLabel: string;
-  readonly href: string;
-  /**
-   * Метка над карточкой («РЕКОМЕНДУЮ»). Она же помечает тариф как основной:
-   * его цену показывает мобильная панель и подставляют сквозные подписи кнопок.
-   * Ставится ровно одному тарифу — два «рекомендую» не рекомендуют ничего.
-   */
-  readonly badge?: string;
-}
-
-export interface Pricing {
+/**
+ * Блок подписки. Продукт на сайте один — доступ ко всем направлениям сразу,
+ * поэтому здесь нет списка тарифов: сравнивать не с чем и выбирать нечего.
+ * Сам список направлений берётся из реестра, а не переписывается в контенте.
+ */
+export interface Subscription {
   readonly kicker: string;
   readonly title: string;
-  /** По возрастанию цены: читают слева направо. */
-  readonly plans: readonly PricingPlan[];
-  readonly payment: string;
+  readonly lead: string;
+  /** Что даёт подписка помимо самих направлений. */
+  readonly features: readonly string[];
 }
 
 export interface FaqItem {
@@ -149,9 +145,8 @@ export interface Faq {
 export interface FinalCta {
   readonly title: string;
   readonly lead: string;
-  readonly ctaLabel: string;
-  readonly href: string;
-  readonly note: string;
+  /** Строка под кнопкой. Пусто — строки нет: обещать нечего. */
+  readonly note?: string;
   readonly image: string;
   readonly imageBrightness: number;
 }
@@ -162,15 +157,15 @@ export interface LandingContent {
   readonly meta: Meta;
   readonly nav: readonly NavLink[];
   readonly hero: Hero;
-  readonly mirror: Mirror;
-  readonly reasons: Reasons;
-  readonly mechanism: Mechanism;
+  readonly mirror?: Mirror;
+  readonly reasons?: Reasons;
+  readonly mechanism?: Mechanism;
   /** Секция «Шесть эффектов» есть только на лендинге Б. */
   readonly effects?: Effects;
-  readonly program: Program;
-  readonly plan: Plan;
-  readonly author: Author;
-  readonly pricing: Pricing;
+  readonly program?: Program;
+  readonly plan?: Plan;
+  /** Блок автора общий для всего сайта, но подпись у направлений своя. */
+  readonly author?: Author;
   readonly faq: Faq;
   readonly finalCta: FinalCta;
 }

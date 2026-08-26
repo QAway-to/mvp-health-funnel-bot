@@ -3,9 +3,10 @@ import Cta from '../components/Cta.astro';
 import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { site, routes } from '../config/site';
-import { home } from '../content/home';
+import { leadMagnet } from '../content/lead';
 import { standaloneNav } from '../content/nav';
 import { botUrl } from '../lib/leadLink';
+import { isFilled } from '../lib/offer';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -22,8 +23,7 @@ const meta = {
   ogImage: '/img/barefoot-step.jpg',
 };
 
-const { leadMagnet } = home;
-const hasBot = !site.lead.telegramUrl.startsWith('{');
+const hasBot = isFilled(site.lead.telegramUrl);
 /**
  * Ссылка на бота с меткой источника. Здесь стоит метка по умолчанию: страницу
  * открывают и напрямую. Если человек пришёл с продуктового лендинга, адрес

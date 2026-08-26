@@ -1,0 +1,230 @@
+---
+import { site } from '../config/site';
+import { liveDirections, soonDirections } from '../content/directions';
+import { subscriptionContent } from '../content/subscription';
+import { checkoutHref, checkoutKind, checkoutLabel, hasCheckout, hasPrice, priceLabel } from '../lib/offer';
+import Cta from './Cta.astro';
+
+/**
+ * Блок платной ступени. Продукт один — подписка на все направления,
+ * поэтому вместо сетки тарифов одна карточка.
+ *
+ * Что входит, компонент не переписывает руками: список направлений он берёт
+ * из реестра. Открылось новое направление — строка появилась здесь сама.
+ *
+ * Пока ссылка оплаты не заведена, карточка честно зовёт на бесплатную
+ * ступень вместо кнопки, ведущей в никуда. Решение принимает src/lib/offer.ts.
+ */
+
+interface Props {
+  tone: 'base' | 'alt';
+  /** Сегмент страницы: едет с человеком до бота, если чекаута ещё нет. */
+  segment?: string;
+}
+
+const { tone, segment } = Astro.props;
+
+const price = priceLabel();
+const terms = site.subscription.terms;
+const soonCount = soonDirections.length;
+---
+
+<section id="price" class={`section section--${tone}`} data-section="price">
+  <div class="container stack">
+    <p class="kicker">{subscriptionContent.kicker}</p>
+    <h2 class="h2">{subscriptionContent.title}</h2>
+    <p class="subscription__lead">{subscriptionContent.lead}</p>
+
+    <div class="subscription__card">
+      <div class="subscription__offer">
+        {price && <p class="subscription__price">{price}</p>}
+
+        <ul class="subscription__features">
+          {
+            subscriptionContent.features.map((feature) => (
+              <li class="subscription__feature">
+                <span class="subscription__marker" aria-hidden="true" />
+                <span>{feature}</span>
+              </li>
+            ))
+          }
+        </ul>
+
+        <Cta
+          kind={checkoutKind()}
+          href={checkoutHref(segment)}
+          placement="price_subscription"
+          size="md"
+          class="subscription__cta"
+        >
+          {checkoutLabel()}
+        </Cta>
+
+        {hasCheckout() && terms && <p class="subscription__terms">{terms}</p>}
+        {
+          !hasCheckout() && (
+            <p class="subscription__terms">
+              Подписка открывается со дня на день. Пока — бесплатная ступень,
+              и о запуске сообщим первым.
+            </p>
+          )
+        }
+      </div>
+
+      <div class="subscription__included">
+        <p class="subscription__included-title">Что открыто сейчас</p>
+        <ul class="subscription__list">
+          {
+            liveDirections.map((direction) => (
+              <li class="subscription__item">
+                <span class="subscription__item-title">{direction.title}</span>
+                <span class="subscription__item-text">{direction.promise}</span>
+              </li>
+            ))
+          }
+        </ul>
+        {
+          soonCount > 0 && (
+            <p class="subscription__soon">
+              Готовятся ещё {soonCount}: {soonDirections.map((direction) => direction.title.toLowerCase()).join(', ')}.
+            </p>
+          )
+        }
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .subscription__lead {
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--text-lead);
+    max-width: 62ch;
+  }
+
+  /* Предложение и состав — две колонки на десктопе, стопка на телефоне.
+     Порядок в разметке — предложение первым: на узком экране цена должна
+     оказаться выше списка, а не под ним. */
+  .subscription__card {
+    display: grid;
+    grid-template-columns: minmax(300px, 420px) 1fr;
+    gap: 32px;
+    align-items: stretch;
+  }
+
+  @media (max-width: 899px) {
+    .subscription__card {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .subscription__offer {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    padding: 36px 32px;
+    background: var(--card-primary);
+    border: 1px solid var(--accent);
+  }
+
+  .subscription__price {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 4.4vw, 52px);
+    font-weight: 800;
+    line-height: 1;
+    color: var(--accent-text);
+  }
+
+  .subscription__features {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .subscription__feature {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-card);
+  }
+
+  .subscription__marker {
+    width: 8px;
+    height: 8px;
+    margin-top: 8px;
+    flex: none;
+    background: var(--accent);
+  }
+
+  /* Кнопку рисует компонент Cta — scoped-селектор до неё не долетает. */
+  .subscription__offer :global(.subscription__cta) {
+    margin-top: auto;
+  }
+
+  .subscription__terms {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  .subscription__included {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 36px 32px;
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  .subscription__included-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .subscription__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 16px 28px;
+  }
+
+  .subscription__item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .subscription__item-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .subscription__item-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .subscription__soon {
+    margin-top: auto;
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

@@ -1,4 +1,3 @@
-import { site } from '../config/site';
 import { landingA } from './landing-a';
 
 /**
@@ -43,11 +42,11 @@ export const courseBlocks: readonly CourseBlock[] = landingA.program.blocks.map(
 }));
 
 export const courseFacts: CourseFacts = {
-  lessonsCount: `${site.pricing.lessonsCount} уроков в 4 блоках`,
+  lessonsCount: 'Четыре блока с уроками по 5–10 минут',
   dailyTime: '5–10 минут в день',
-  access: `Доступ на ${site.pricing.accessPeriod}`,
+  access: 'Доступ — пока активна подписка',
   devices: 'Телефон, планшет, компьютер — браузер, без установки',
-  feedback: 'В премиуме — разбор техники по вашему видео и ответы на вопросы',
+  feedback: 'Разбор вопросов в чате поддержки',
   equipment: 'Без зала и снаряжения',
 };
 

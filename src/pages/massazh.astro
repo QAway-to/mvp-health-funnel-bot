@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import { massazh } from '../content/massazh';
+import Landing from '../layouts/Landing.astro';
+---
+
+<Landing meta={massazh.meta} path="/massazh/">
+  <LandingPage content={massazh} />
+</Landing>

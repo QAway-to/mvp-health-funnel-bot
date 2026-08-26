@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import { son } from '../content/son';
+import Landing from '../layouts/Landing.astro';
+---
+
+<Landing meta={son.meta} path="/son/">
+  <LandingPage content={son} />
+</Landing>

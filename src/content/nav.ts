@@ -1,6 +1,6 @@
 import type { NavLink } from './types';
 
-/** Якорная навигация одинакова на обоих лендингах. */
+/** Якорная навигация одинакова на всех страницах направлений. */
 export const nav: readonly NavLink[] = [
   { label: 'Программа', href: '#program' },
   { label: 'Цена', href: '#price' },
@@ -9,9 +9,16 @@ export const nav: readonly NavLink[] = [
 
 /**
  * Навигация для страниц вне лендингов: там нет якорных секций,
- * поэтому ведём на сами сценарии.
+ * поэтому ведём на сами направления.
  */
 export const standaloneNav: readonly NavLink[] = [
+  { label: 'Направления', href: '/' },
   { label: 'Комфортный бег', href: '/komfort/' },
   { label: 'Сила и выносливость', href: '/sila/' },
+];
+
+/** Навигация хаба: якоря его собственных секций. */
+export const hubNav: readonly NavLink[] = [
+  { label: 'Направления', href: '#directions' },
+  { label: 'Доступ', href: '#price' },
 ];
