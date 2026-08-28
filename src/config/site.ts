@@ -150,6 +150,8 @@ export const routes = {
   zaryadka: '/zaryadka/',
   samomassazh: '/samomassazh/',
   massazh: '/massazh/',
+  zakalivanie: '/zakalivanie/',
+  vrednyePrivychki: '/vrednye-privychki/',
   start: '/start/',
   startThanks: '/start/spasibo/',
   demo: '/demo/',

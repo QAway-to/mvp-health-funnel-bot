@@ -26,6 +26,8 @@ export const LEAD_SEGMENTS = [
   'zaryadka',
   'samomassazh',
   'massazh',
+  'zakalivanie',
+  'vrednye-privychki',
   'demo',
   'home',
 ] as const;

@@ -25,12 +25,38 @@ import Landing from '../layouts/Landing.astro';
 const meta = {
   title: 'Федерация здоровья — направления здорового образа жизни',
   description:
-    'Бег, сон, зарядка, самомассаж, массаж — и ещё шесть направлений в работе. Одна подписка на всё, первый шаг бесплатно.',
+    'Бег, сон, закаливание, вредные привычки, зарядка, самомассаж, массаж — и ещё четыре направления в работе. Одна подписка на всё, первый шаг бесплатно.',
   ogImage: '/img/silhouettes.jpg',
 };
 
 const liveCount = liveDirections.length;
 const totalCount = directions.length;
+
+/**
+ * Склонение слова «направление» под число.
+ *
+ * Раньше в заголовке стояло «Ещё 6 направлений» жёстким текстом, и это
+ * работало ровно до того дня, когда готовящихся стало четыре. Числа берутся
+ * из реестра, значит и форма слова должна браться оттуда же.
+ */
+const directionWord = (count: number): string => {
+  const tail = count % 100;
+  if (tail >= 11 && tail <= 14) return 'направлений';
+  switch (count % 10) {
+    case 1:
+      return 'направление';
+    case 2:
+    case 3:
+    case 4:
+      return 'направления';
+    default:
+      return 'направлений';
+  }
+};
+
+/* Ссылка у готовящегося направления может быть, а может и не быть: сейчас
+   страниц нет ни у одного, и обещать их в подводке нельзя. */
+const someSoonHavePages = soonDirections.some((direction) => Boolean(direction.href));
 
 /* Тон следующей секции зависит от того, покажутся ли отзывы: иначе два
    одинаковых фона встанут подряд. */
@@ -88,11 +114,13 @@ const hasTestimonials = testimonialsFor('all').length > 0;
     <section class="section section--base" data-section="directions_soon">
       <div class="container stack">
         <p class="kicker">Готовятся</p>
-        <h2 class="h2">Ещё {soonDirections.length} направлений в работе</h2>
+        <h2 class="h2">
+          Ещё {soonDirections.length} {directionWord(soonDirections.length)} в работе
+        </h2>
         <p class="soon__lead">
-          Они заявлены в плане Федерации и откроются подписчикам без доплаты. У части
-          из них страница уже готова — материал дописывается. Порядок зависит от того,
-          чего просят чаще: написать об этом можно в боте.
+          Они заявлены в плане Федерации и откроются подписчикам без доплаты.
+          {someSoonHavePages && ' У части из них страница уже готова — материал дописывается.'}
+          Порядок зависит от того, чего просят чаще: написать об этом можно в боте.
         </p>
 
         <ul class="soon">
