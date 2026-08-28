@@ -44,6 +44,8 @@ class Welcome:
 
 def _parse(raw: str) -> dict[str, Welcome]:
     sections: dict[str, tuple[list[str], str, list[str]]] = {}
+    #: Прежний слаг -> действующий раздел. Ссылки со старой меткой не пропадают.
+    aliases: dict[str, str] = {}
     key: str | None = None
 
     for line in raw.splitlines():
@@ -51,9 +53,17 @@ def _parse(raw: str) -> dict[str, Welcome]:
         if stripped.startswith("#"):
             continue
         if stripped.startswith(_SECTION_PREFIX):
-            key = stripped[len(_SECTION_PREFIX) :].strip().lower()
+            # Заголовок может перечислить несколько слагов через запятую:
+            # «== massazh, samomassazh». Так живут метки направлений, которые
+            # слили в одно: ссылки со старой уже разошлись, и уводить их в
+            # общее приветствие было бы потерей.
+            names = [n.strip().lower() for n in stripped[len(_SECTION_PREFIX) :].split(",")]
+            names = [n for n in names if n]
+            key = names[0] if names else None
             if key:
                 sections.setdefault(key, ([], "", []))
+                for alias in names[1:]:
+                    aliases[alias] = key
             continue
         if key is None:
             continue
@@ -75,6 +85,12 @@ def _parse(raw: str) -> dict[str, Welcome]:
             result[key] = Welcome(
                 key=key, text=text, photo=photo, topics=tuple(topics)
             )
+
+    # Псевдоним ведёт на тот же объект, а не на копию: `key` внутри остаётся
+    # действующим, поэтому и callback_data кнопок будет с действующим слагом.
+    for alias, target in aliases.items():
+        if target in result:
+            result[alias] = result[target]
     return result
 
 

@@ -29,9 +29,12 @@ SITE_SEGMENTS = (
     "zakalivanie",
     "vrednye-privychki",
     "zaryadka",
-    "samomassazh",
     "massazh",
 )
+
+#: Прежний слаг -> действующий раздел. Ссылки с ним уже разошлись по рекламе и
+#: по чужим постам, поэтому вести их в общее приветствие нельзя.
+ALIASES = {"samomassazh": "massazh"}
 
 TELEGRAM_MESSAGE_LIMIT = 4096
 
@@ -152,3 +155,20 @@ def test_stale_or_broken_callback_is_ignored():
     """Кнопка из приветствия, которое переписали, не должна ронять обработчик."""
     for data in ("gift", "t:", "t:нет-такого:0", "t:son:99", "t:son:x", "мусор"):
         assert bot_module.topic_from_callback(data) is None
+
+
+def test_old_slug_still_lands_on_the_merged_greeting():
+    """Массаж и самомассаж слиты. Старая ссылка не должна вести в никуда."""
+    for old, current in ALIASES.items():
+        greeting = welcome_for(WELCOME, old)
+        assert greeting is not None
+        assert greeting.key == current, f"{old} ушёл не туда: {greeting.key}"
+        assert greeting.key != DEFAULT_KEY, f"{old} свалился в общее приветствие"
+
+
+def test_alias_callbacks_carry_the_current_slug():
+    """Кнопки под старой ссылкой должны быть с действующим слагом, а не с её."""
+    greeting = welcome_for(WELCOME, "samomassazh")
+    keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
+    for row in keyboard.inline_keyboard[:-1]:
+        assert row[0].callback_data.startswith(f"{bot_module._TOPIC_CALLBACK}massazh:")

@@ -31,8 +31,8 @@ DIRECTIONS = {
     "03-zakalivanie.txt": "ЗАКАЛИВАНИЕ",
     "04-vrednye-privychki.txt": "ВРЕДНЫЕ ПРИВЫЧКИ",
     "05-zaryadka.txt": "ЗАРЯДКА",
-    "06-samomassazh.txt": "САМОМАССАЖ",
-    "07-massazh.txt": "МАССАЖ",
+    # Массаж и самомассаж слиты 28.08.2026: приёмы там одни и те же.
+    "06-massazh.txt": "МАССАЖ И САМОМАССАЖ",
 }
 
 
@@ -76,16 +76,16 @@ def test_unconfirmed_topics_stay_out():
 
 
 def test_directions_in_preparation_are_marked():
-    """Зарядка и самомассаж открыты как материалы — модель должна это знать."""
-    for name in ("05-zaryadka.txt", "06-samomassazh.txt"):
+    """Зарядка и массаж открыты как материалы — модель должна это знать."""
+    for name in ("05-zaryadka.txt", "06-massazh.txt"):
         text = (KB_DIR / name).read_text(encoding="utf-8")
-        assert "разложен не до конца" in text, f"{name} не помечен как готовящийся"
+        assert "дописыва" in text, f"{name} не помечен как готовящийся"
         assert "ГОВОРИТЬ ЧЕСТНО" in text, f"в {name} нет списка того, чего в нём нет"
 
 
 def test_contraindications_are_present_where_they_matter():
     """Холод и массаж — единственные темы, где молчание стоит здоровья."""
-    for name in ("03-zakalivanie.txt", "06-samomassazh.txt", "07-massazh.txt"):
+    for name in ("03-zakalivanie.txt", "06-massazh.txt"):
         text = (KB_DIR / name).read_text(encoding="utf-8")
         assert "ПРОТИВОПОКАЗАНИ" in text.upper(), f"в {name} нет противопоказаний"
 
