@@ -148,7 +148,6 @@ export const routes = {
   sila: '/sila/',
   son: '/son/',
   zaryadka: '/zaryadka/',
-  samomassazh: '/samomassazh/',
   massazh: '/massazh/',
   zakalivanie: '/zakalivanie/',
   vrednyePrivychki: '/vrednye-privychki/',

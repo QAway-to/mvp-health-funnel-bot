@@ -8,7 +8,7 @@ import { directions } from './directions';
  * дают читаемую пару без пересказа.
  *
  * `segment` определяет, где отзыв показывается. Это либо `slug` направления
- * из реестра (`komfort`, `sila`, `son`, `zaryadka`, `samomassazh`, `massazh`),
+ * из реестра (`komfort`, `sila`, `son`, `zaryadka`, `zakalivanie`, `massazh`),
  * либо `all` — тогда отзыв виден везде, включая главную. Беговые лендинги
  * ведут два своих сегмента: `komfort` и `sila`.
  */

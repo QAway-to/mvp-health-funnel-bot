@@ -28,8 +28,13 @@ const REDIRECTS = new Map([
   ['/sila', '/sila/'],
   ['/son', '/son/'],
   ['/zaryadka', '/zaryadka/'],
-  ['/samomassazh', '/samomassazh/'],
   ['/massazh', '/massazh/'],
+  ['/zakalivanie', '/zakalivanie/'],
+  ['/vrednye-privychki', '/vrednye-privychki/'],
+  // Самомассаж слит с массажем 28.08.2026: приёмы там одни и те же. Страницы
+  // больше нет, но ссылки на неё уже разошлись — и по сайту, и в боте.
+  ['/samomassazh', '/massazh/'],
+  ['/samomassazh/', '/massazh/'],
   ['/start', '/start/'],
   ['/demo', '/demo/'],
   ['/a', '/komfort/'],
