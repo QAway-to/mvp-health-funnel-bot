@@ -41,12 +41,22 @@ class Config:
     PURCHASE_URL: Optional[str] = os.getenv("PURCHASE_URL")
     PAYMENTS_ENABLED: bool = _flag("PAYMENTS_ENABLED")
     # Цена ступени в звёздах Telegram. Ноль означает «в звёздах не продаём» —
-    # такая ступень уходит на внешнюю страницу оплаты. Курс звезды к доллару
-    # тут не считается: он меняется, и придуманное число обмануло бы кассу.
-    STARS_PRICE: int = int(os.getenv("STARS_PRICE", "1000"))
-    STARS_PRICE_BASE: int = int(os.getenv("STARS_PRICE_BASE", "0"))
+    # такая ступень уходит на внешнюю страницу оплаты.
+    #
+    # Значения по умолчанию посчитаны от курса, который заказчик проверил в
+    # Telegram 28.08.2026: 2500 звёзд ≈ $40, то есть примерно 62,5 звезды за
+    # доллар. Отсюда $9 → 560, $20 → 1250, $100 → 6250.
+    #
+    # Курс плавает и в мелких пачках звёзды дороже, поэтому числа остаются
+    # переопределяемыми из окружения: текст правит тот, кто пишет тексты,
+    # деньги задаёт тот, у кого доступ к кассе. Но раньше значение по
+    # умолчанию (1000 звёзд на все ступени) не соответствовало ни одной цене
+    # на сайте — а это ровно тот случай, когда человек платит не ту сумму.
+    STARS_PER_DOLLAR: float = float(os.getenv("STARS_PER_DOLLAR", "62.5"))
+    STARS_PRICE: int = int(os.getenv("STARS_PRICE", "1250"))
+    STARS_PRICE_BASE: int = int(os.getenv("STARS_PRICE_BASE", "0")) or 560
     STARS_PRICE_PREMIUM: int = int(os.getenv("STARS_PRICE_PREMIUM", "0")) or STARS_PRICE
-    STARS_PRICE_PRO: int = int(os.getenv("STARS_PRICE_PRO", "0"))
+    STARS_PRICE_PRO: int = int(os.getenv("STARS_PRICE_PRO", "0")) or 6250
 
     # --- LLM ---
     DEEPSEEK_API_KEY: Optional[str] = os.getenv("DEEPSEEK_API_KEY")

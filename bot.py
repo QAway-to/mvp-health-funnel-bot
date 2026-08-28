@@ -16,6 +16,7 @@ from utils.content_library import ContentItem, library, parse_caption, tags_for_
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
+from utils import stars
 from utils.telegram_html import has_markdown, to_telegram_html
 from utils.welcome import load_welcome, welcome_for
 
@@ -266,6 +267,11 @@ def _load_plans() -> tuple[str, tuple[Plan, ...]]:
 
 
 _PLANS_TEXT, _PLANS = _load_plans()
+
+# Сумма счёта и цена на кнопке заданы в разных местах и связи между собой не
+# имеют. Однажды они разошлись вдвое — сверяем при старте, чтобы узнать об
+# этом из лога, а не от человека, который заплатил больше, чем прочитал.
+stars.log_check(_PLANS, config.STARS_PER_DOLLAR)
 
 def _default_plan() -> "Plan | None":
     """Ступень для команды /buy: рекомендуемая, иначе первая продаваемая."""
@@ -599,7 +605,7 @@ class TelegramBot:
             # рестарт. Telegram — единственный канал, который точно переживёт
             # подмену контейнера: пусть запись останется хотя бы в чате админа.
             await self._alert_admin(
-                "⚠️ <b>Оплата не записалась в Sheets</b>\n"
+                "⚠️ <b>Оплата не записалась в хранилище</b>\n"
                 f"chat_id: <code>{chat_id}</code>\n"
                 f"причина: {reason}\n"
                 f"детали: <code>{details}</code>\n\n"

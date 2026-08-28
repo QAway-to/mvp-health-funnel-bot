@@ -15,6 +15,7 @@ from fastapi import FastAPI, HTTPException, Request
 from bot import telegram_bot
 from config import config
 from utils import site
+from utils.content_library import library
 from utils.funnel_store import store
 from utils.logger import get_recent_logs, log_agent_action
 
@@ -51,6 +52,18 @@ async def debug_info():
         # Собрана ли статика лендингов. Отдельной строкой, потому что бот
         # поднимается и без неё, и молча отдавать 404 на весь сайт нельзя.
         "site_built": site.is_available(),
+        # Состояние библиотеки роликов. Раньше ответ на «почему бот не
+        # присылает видео» приходилось искать в логе, а он короткий и старые
+        # строки из него вымываются. Теперь видно сразу: сколько роликов, по
+        # каким темам и сколько не подберутся ни по одному запросу.
+        "content": {
+            "total": len(library),
+            "premium_only": library.premium_count(),
+            "untagged": len(library.untagged()),
+            "topics": sorted(
+                {topic for item in library._items.values() for topic in library.topics_of(item)}
+            ),
+        },
         "logs": get_recent_logs(),
     }
 
