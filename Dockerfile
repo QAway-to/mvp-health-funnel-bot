@@ -13,10 +13,16 @@ FROM node:22.12-slim AS site
 
 WORKDIR /site
 
-# Зависимости отдельным слоем: пока package-lock.json не менялся, повторная
+# Зависимости отдельным слоем: пока package.json не менялся, повторная
 # сборка не тянет npm заново.
+#
+# Здесь `npm install`, а не `npm ci`, хотя ci строже и воспроизводимее.
+# Причина простая: на сервисе лендинга сборка много месяцев идёт командой
+# `npm install && npm run build` и не падала ни разу, а первая же сборка с
+# `npm ci` упала с EUSAGE. Разбираться, чем именно не устроил lock-файл,
+# дешевле не в проде — а пока берём то, что заведомо работает.
 COPY site/package.json site/package-lock.json ./
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 
 COPY site/ ./
 # Собирает Astro и рядом кладёт .br и .gz — их отдаёт utils/site.py.
