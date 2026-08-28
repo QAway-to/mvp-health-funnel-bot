@@ -16,27 +16,131 @@ from utils.content_library import ContentItem, library, parse_caption, tags_for_
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
+from utils.welcome import load_welcome, welcome_for
+
+_PROMPTS_DIR = Path(__file__).parent / "prompts"
+_KB_DIR = _PROMPTS_DIR / "kb"
+
+_PERSONA_FALLBACK = (
+    "Ты — представитель Федерации Здоровья. Отвечай коротко и по делу о беге и здоровье."
+)
+
+
+def _load_knowledge_base() -> str:
+    """Знания по направлениям — по файлу на направление в prompts/kb/.
+
+    Раньше всё лежало одним файлом вместе с правилами. Пока направление было
+    одно, это работало; на семи такой файл перестаёт читаться человеком, а
+    именно человек его и правит. Теперь правила остаются в persona.txt, а
+    факты живут по направлениям — ровно как в репозитории сайта, где у
+    каждого направления свой файл.
+
+    Порядок склейки — по имени файла, поэтому они пронумерованы: бег идёт
+    первым не случайно, это ядро продукта.
+    """
+    try:
+        paths = sorted(_KB_DIR.glob("*.txt"))
+    except OSError as e:
+        log_agent_action("Bot", f"Не прочитан каталог prompts/kb: {e}", level="ERROR")
+        return ""
+
+    parts: list[str] = []
+    for path in paths:
+        try:
+            text = path.read_text(encoding="utf-8").strip()
+        except OSError as e:
+            log_agent_action("Bot", f"Не прочитан {path.name}: {e}", level="ERROR")
+            continue
+        if text:
+            parts.append(text)
+
+    if not parts:
+        log_agent_action(
+            "Bot",
+            "prompts/kb пуст — бот останется без знаний по направлениям",
+            level="ERROR",
+        )
+        return ""
+
+    log_agent_action("Bot", f"База знаний: направлений — {len(parts)}")
+    return "\n\n".join(parts)
+
 
 def _load_persona() -> str:
-    """Характер бота и база знаний — в prompts/persona.txt.
+    """Характер бота и база знаний: prompts/persona.txt + prompts/kb/*.txt.
 
     В коде им не место: правка текста не должна выглядеть как правка кода, и
     менять её должен человек, который пишет тексты, а не тот, кто читает Python.
     """
-    path = Path(__file__).parent / "prompts" / "persona.txt"
+    path = _PROMPTS_DIR / "persona.txt"
     try:
-        text = path.read_text(encoding="utf-8").strip()
-        if text:
-            return text
+        rules = path.read_text(encoding="utf-8").strip()
     except OSError as e:
         log_agent_action("Bot", f"Не прочитан prompts/persona.txt: {e}", level="ERROR")
-    log_agent_action(
-        "Bot", "prompts/persona.txt пуст — бот будет отвечать без базы знаний", level="ERROR"
-    )
-    return "Ты — представитель Федерации Здоровья. Отвечай коротко и по делу о беге и здоровье."
+        rules = ""
+
+    if not rules:
+        log_agent_action(
+            "Bot", "prompts/persona.txt пуст — бот будет отвечать без базы знаний", level="ERROR"
+        )
+        rules = _PERSONA_FALLBACK
+
+    knowledge = _load_knowledge_base()
+    return f"{rules}\n\n{knowledge}".strip() if knowledge else rules
 
 
 _CHAT_SYSTEM_PROMPT = _load_persona()
+
+# Приветствия по направлениям. Запасной текст короткий намеренно: держать
+# полную копию приветствия в коде — значит однажды править её в двух местах и
+# забыть про одно. Файл лежит в репозитории, и его пропажа — авария, о которой
+# сообщит лог, а не то, что нужно молча компенсировать.
+_WELCOME = load_welcome()
+_WELCOME_FALLBACK = (
+    "Приветствую! На связи Богдан, глава Федерации Здоровья.\n\n"
+    "Спрашивайте — разберём по существу: бег, сон, закаливание, вредные "
+    "привычки, зарядка и массаж."
+)
+
+
+# Направление, с лендинга которого пришёл человек. Метка приезжает в deep link
+# (`t.me/bot?start=zakalivanie`) и уже хранится в состоянии пользователя —
+# просто до сих пор ей нечего было сказать модели: направление было одно.
+# Теперь их семь, и без этой подсказки бот открывал бы бегом разговор с
+# человеком, который пришёл со страницы про сон.
+#
+# Два беговых лендинга ведут разные сегменты, поэтому у них своя расшифровка:
+# на «Комфорт» приходят с болью, на «Силу» — из зала.
+_SOURCE_DIRECTIONS: dict[str, str] = {
+    "beg": "Бег",
+    "komfort": "Бег — пришёл с болью в коленях и тяжестью после пробежек",
+    "sila": "Бег — пришёл из зала, интересует выносливость",
+    "son": "Сон",
+    "zakalivanie": "Закаливание",
+    "vrednye-privychki": "Вредные привычки",
+    "zaryadka": "Зарядка",
+    "samomassazh": "Самомассаж",
+    "massazh": "Массаж",
+}
+
+
+def entry_hint(source: str) -> str:
+    """Строка о направлении входа — или пусто, если метки нет.
+
+    Пусто — рабочее состояние, а не ошибка: человек мог прийти по прямой
+    ссылке или из поиска. Тогда направление выясняется разговором, как и
+    раньше.
+    """
+    direction = _SOURCE_DIRECTIONS.get(source.strip().lower())
+    if not direction:
+        return ""
+    return (
+        "\n\nОТКУДА ПРИШЁЛ ЭТОТ ЧЕЛОВЕК: со страницы направления «"
+        + direction
+        + "». С него и начинай: первый ответ — по этой теме, а не по бегу. "
+        "Если человек сам переведёт разговор на другое направление, спокойно "
+        "иди за ним."
+    )
 
 
 def _load_gift() -> str:
@@ -501,26 +605,26 @@ class TelegramBot:
         await store.save(replace(state, last_seen_at=now_iso()))
         await store.event(chat_id, "start", bucket=state.bucket, source=state.source)
 
-        try:
-            await update.message.reply_photo(photo="AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADAgADdwADPAQ")
-        except TelegramError as e:
-            log_agent_action("Telegram", f"Failed to send welcome photo: {e}", level="WARNING")
-        # Текст — из готового сценария приветственного ролика. Он снимает
-        # главное возражение ещё до первого вопроса: здесь не спорт и не
-        # рекорды, поэтому «бег не для меня» перестаёт быть причиной уйти.
-        welcome = (
-            "Приветствую! На связи Богдан, глава Федерации Здоровья.\n\n"
-            "Вы зашли туда, где о беге говорят не как о спорте, а как о способе вернуть телу здоровье, энергию и лёгкость.\n\n"
-            "Правда в том, что большинство из нас бегает не так, как задумала природа — а потом удивляется больным коленям и бросает со словами «это не моё».\n\n"
-            "Мы это исправим. Без рекордов, марафонов и надрыва. Пять минут в день — и тело просыпается, а не изнашивается. Стопа, дыхание, техника, которая не ломает, а лечит.\n\n"
-            "С чего начнём?\n\n"
-            "<b>Бег босиком и его польза</b>\n"
-            "<b>Виды бега и техника</b>\n"
-            "<b>Закаливание и терморегуляция</b>\n"
-            "<b>Дыхание во время бега</b>\n"
-            "<b>Как начать бегать с нуля</b>\n"
-            "<b>Бег для долголетия</b>"
-        )
+        # Приветствие своё на каждое направление: человек, пришедший со
+        # страницы про сон, не должен первым сообщением получать речь о стопе
+        # и коленях. Текст выбирается по метке из deep link, см.
+        # prompts/welcome.txt.
+        greeting = welcome_for(_WELCOME, state.source)
+        if greeting is None:
+            log_agent_action(
+                "Telegram", "Приветствий нет — отправлено запасное", level="ERROR"
+            )
+        welcome = greeting.text if greeting else _WELCOME_FALLBACK
+        photo = greeting.photo if greeting else ""
+
+        if photo:
+            try:
+                await update.message.reply_photo(photo=photo)
+            except TelegramError as e:
+                log_agent_action(
+                    "Telegram", f"Failed to send welcome photo: {e}", level="WARNING"
+                )
+
         keyboard = None
         if _GIFT_TEXT:
             keyboard = InlineKeyboardMarkup([[
@@ -575,7 +679,9 @@ class TelegramBot:
         is_premium = state.is_premium
 
         if chat_id not in self._conversations:
-            system_prompt = _CHAT_SYSTEM_PROMPT + _OFFER.system_suffix()
+            system_prompt = (
+                _CHAT_SYSTEM_PROMPT + entry_hint(state.source) + _OFFER.system_suffix()
+            )
             self._conversations[chat_id] = [{"role": "system", "content": system_prompt}]
         else:
             # LRU: перекладываем в конец, чтобы вытеснялись самые давние чаты
