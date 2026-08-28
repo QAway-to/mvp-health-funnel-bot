@@ -1,0 +1,119 @@
+---
+import type { Mechanism } from '../content/types';
+
+interface Props {
+  mechanism: Mechanism;
+  tone: 'base' | 'alt';
+}
+
+const { mechanism, tone } = Astro.props;
+---
+
+<section class={`section--${tone} mechanism`} data-section="mechanism">
+  <div class="mechanism__inner">
+    <div class="mechanism__text">
+      <p class="kicker">{mechanism.kicker}</p>
+      <h2 class="mechanism__title">{mechanism.title}</h2>
+
+      <div class="mechanism__grid">
+        {
+          mechanism.items.map((item) => (
+            <article class="mechanism__item">
+              <h3 class="mechanism__item-title">{item.title}</h3>
+              <p class="mechanism__item-text">{item.text}</p>
+            </article>
+          ))
+        }
+      </div>
+
+      <p class="note">{mechanism.note}</p>
+    </div>
+
+    <div class="mechanism__media">
+      <img src={mechanism.image} alt={mechanism.imageAlt} loading="lazy" decoding="async" />
+      <div class="mechanism__scrim"></div>
+    </div>
+  </div>
+</section>
+
+<style>
+  .mechanism__inner {
+    max-width: var(--container);
+    margin-inline: auto;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(360px, 1fr));
+  }
+
+  .mechanism__text {
+    padding: var(--section-y) 40px var(--section-y) var(--gutter);
+    display: flex;
+    flex-direction: column;
+    gap: 26px;
+    justify-content: center;
+  }
+
+  .mechanism__title {
+    font-family: var(--font-display);
+    font-size: clamp(30px, 3.6vw, 48px);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+  }
+
+  .mechanism__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 24px;
+  }
+
+  .mechanism__item {
+    border-top: 3px solid var(--accent);
+    padding-top: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .mechanism__item-title {
+    font-family: var(--font-display);
+    font-size: 21px;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+
+  .mechanism__item-text {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .note {
+    padding-top: 20px;
+  }
+
+  .mechanism__media {
+    position: relative;
+    min-height: 420px;
+  }
+
+  .mechanism__media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .mechanism__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(247, 242, 231, 0.1), rgba(247, 242, 231, 0.28));
+  }
+
+  /* На узких экранах колонка с текстом теряет левый прижим к контейнеру. */
+  @media (max-width: 767px) {
+    .mechanism__text {
+      padding-inline: var(--gutter);
+    }
+  }
+</style>

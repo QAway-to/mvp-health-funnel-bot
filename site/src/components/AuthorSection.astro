@@ -1,0 +1,116 @@
+---
+import type { Author } from '../content/types';
+
+interface Props {
+  author: Author;
+  tone: 'base' | 'alt';
+}
+
+const { author, tone } = Astro.props;
+---
+
+<section class={`section section--${tone}`} data-section="author">
+  <div class={`container author author--image-${author.imageSide}`}>
+    <div class="author__media">
+      <img src={author.image} alt={author.imageAlt} loading="lazy" decoding="async" />
+      <div class="author__scrim"></div>
+    </div>
+
+    <div class="author__text">
+      <p class="kicker">{author.kicker}</p>
+      <h2 class="author__title">{author.title}</h2>
+      <p class="author__bio">{author.text}</p>
+
+      <dl class="author__metrics">
+        {
+          author.metrics.map((metric) => (
+            <div class="author__metric">
+              <dt class="author__metric-value">{metric.value}</dt>
+              <dd class="author__metric-label">{metric.label}</dd>
+            </div>
+          ))
+        }
+      </dl>
+    </div>
+  </div>
+</section>
+
+<style>
+  .author {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 40px;
+    align-items: center;
+  }
+
+  /* Лендинг Б ставит фото справа; в разметке оно идёт первым,
+     поэтому на одну колонку схлопывается текстом вперёд. */
+  .author--image-right .author__media {
+    order: 2;
+  }
+
+  .author__media {
+    position: relative;
+    min-height: 340px;
+  }
+
+  .author__media img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .author__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(180deg, rgba(247, 242, 231, 0.08), rgba(247, 242, 231, 0.24));
+  }
+
+  .author__text {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  .author__title {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 3.4vw, 44px);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.025em;
+  }
+
+  .author__bio {
+    font-size: 18px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+
+  .author__metrics {
+    margin: 0;
+    padding-top: 8px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 20px;
+  }
+
+  .author__metric {
+    border-top: 1px solid var(--border-soft);
+    padding-top: 14px;
+  }
+
+  .author__metric-value {
+    font-family: var(--font-display);
+    font-size: 30px;
+    font-weight: 800;
+    color: var(--accent-text);
+  }
+
+  .author__metric-label {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+</style>

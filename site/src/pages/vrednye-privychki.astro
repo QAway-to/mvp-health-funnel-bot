@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import Landing from '../layouts/Landing.astro';
+import { vrednyePrivychki } from '../content/vrednye-privychki';
+---
+
+<Landing meta={vrednyePrivychki.meta} path="/vrednye-privychki/">
+  <LandingPage content={vrednyePrivychki} />
+</Landing>

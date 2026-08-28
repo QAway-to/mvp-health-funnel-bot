@@ -1,0 +1,39 @@
+---
+import type { Mirror } from '../content/types';
+
+interface Props {
+  mirror: Mirror;
+  tone: 'base' | 'alt';
+}
+
+const { mirror, tone } = Astro.props;
+---
+
+<section class={`section section--${tone}`} data-section="mirror">
+  <div class="container stack">
+    <p class="kicker kicker--problem">{mirror.kicker}</p>
+    <h2 class="h2">{mirror.title}</h2>
+
+    <div class="mirror__grid">
+      {
+        mirror.cards.map((card) => (
+          <article class="rule-card rule-card--problem">
+            <p class="rule-card__label">{card.label}</p>
+            <h3 class="rule-card__title">{card.title}</h3>
+            <p class="rule-card__text">{card.text}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <p class="closer">{mirror.closer}</p>
+  </div>
+</section>
+
+<style>
+  .mirror__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 32px;
+  }
+</style>

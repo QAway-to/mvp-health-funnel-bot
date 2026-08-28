@@ -1,0 +1,130 @@
+# Описание сайта как Render Static Site.
+#
+# СЕЙЧАС НЕ ИСПОЛЬЗУЕТСЯ: сайт развёрнут как Web Service, созданный вручную —
+#   Build Command: npm install && npm run build
+#   Start Command: npm start
+# и редиректы с заголовками живут в server.mjs.
+#
+# Зачем файл нужен. Static Site на Render бесплатен и НЕ ЗАСЫПАЕТ: статику
+# отдаёт CDN, контейнера, который можно усыпить, там просто нет. Web Service на
+# free-плане засыпает после 15 минут тишины, и первый посетитель ждёт холодного
+# старта — на лендинге это потерянный посетитель.
+#
+# Поэтому: если платить только за один сервис, платить нужно за бота, а сайт
+# перевести сюда. Порядок перехода — в CHANGES.md, раздел про хостинг.
+#
+# Список редиректов ниже держится синхронным с REDIRECTS в server.mjs. Пока
+# используются оба файла, правки нужны в обоих: разъедутся — часть ссылок
+# начнёт отдавать 404 после переезда, и заметит это не разработчик, а реклама.
+
+services:
+  - type: web
+    name: mvp-running-landings
+    runtime: static
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+
+    previews:
+      generation: automatic
+
+    envVars:
+      # Базовый URL для canonical, OG-тегов и sitemap.
+      # После привязки домена заменить на боевой адрес.
+      - key: PUBLIC_SITE_URL
+        value: https://mvp-running-landings.onrender.com
+      # Нужен только на этапе сборки: отдаётся статика, рантайма нет.
+      - key: NODE_VERSION
+        value: 22.12.0
+
+    headers:
+      # Хешированные ассеты Astro можно кэшировать навсегда.
+      - path: /_astro/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      - path: /img/*
+        name: Cache-Control
+        value: public, max-age=31536000, immutable
+      # HTML всегда перепроверяется, иначе правки цен доедут не сразу.
+      - path: /*
+        name: Cache-Control
+        value: no-cache
+      - path: /*
+        name: X-Content-Type-Options
+        value: nosniff
+      - path: /*
+        name: Referrer-Policy
+        value: strict-origin-when-cross-origin
+      # Страницы не должны открываться во фрейме на чужом домене.
+      - path: /*
+        name: X-Frame-Options
+        value: SAMEORIGIN
+
+    routes:
+      # Сборка кладёт страницы папками (dist/komfort/index.html), поэтому
+      # канонический адрес — со слешем. Обращение без слеша уводим редиректом,
+      # чтобы не зависеть от того, как хостинг разбирает каталоги.
+      - type: redirect
+        source: /beg
+        destination: /beg/
+      - type: redirect
+        source: /komfort
+        destination: /komfort/
+      - type: redirect
+        source: /sila
+        destination: /sila/
+      - type: redirect
+        source: /son
+        destination: /son/
+      - type: redirect
+        source: /zaryadka
+        destination: /zaryadka/
+      - type: redirect
+        source: /massazh
+        destination: /massazh/
+      - type: redirect
+        source: /zakalivanie
+        destination: /zakalivanie/
+      - type: redirect
+        source: /vrednye-privychki
+        destination: /vrednye-privychki/
+      - type: redirect
+        source: /start
+        destination: /start/
+      - type: redirect
+        source: /demo
+        destination: /demo/
+
+      # Самомассаж слит с массажем 28.08.2026: страницы больше нет, а ссылки
+      # на неё разошлись — и по сайту, и в рекламе.
+      - type: redirect
+        source: /samomassazh
+        destination: /massazh/
+      - type: redirect
+        source: /samomassazh/
+        destination: /massazh/
+
+      # Короткие ссылки для рекламных кампаний.
+      - type: redirect
+        source: /a
+        destination: /komfort/
+      - type: redirect
+        source: /b
+        destination: /sila/
+
+      # Прежние слаги сегмента: сначала «без боли», потом «без дискомфорта».
+      # Обе формулировки были от отрицания, но ссылки на них уже разошлись.
+      - type: redirect
+        source: /bez-boli
+        destination: /komfort/
+      - type: redirect
+        source: /bez-boli/
+        destination: /komfort/
+      - type: redirect
+        source: /bez-diskomforta
+        destination: /komfort/
+      - type: redirect
+        source: /bez-diskomforta/
+        destination: /komfort/
+
+    # SPA-rewrite (/* → /index.html) сознательно не добавлен:
+    # это многостраничная статика, такое правило сломало бы 404.

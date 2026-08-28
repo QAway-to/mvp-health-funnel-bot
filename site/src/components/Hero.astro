@@ -1,0 +1,129 @@
+---
+import Cta from './Cta.astro';
+import { ctaLabels } from '../content/cta';
+import { startUrl } from '../lib/leadLink';
+import type { Hero, HeroSecondary } from '../content/types';
+
+/**
+ * В первом экране цены нет. Основное действие — бесплатная ступень,
+ * вторичное — узнать больше: до цены человек должен получить пользу.
+ */
+
+interface Props {
+  hero: Hero;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
+}
+
+const { hero, segment } = Astro.props;
+
+/* По умолчанию зовём в состав направления: демо-урок один и он про бег. */
+const secondary: HeroSecondary = hero.secondary ?? {
+  label: ctaLabels.program,
+  href: '#program',
+  placement: 'hero_program',
+};
+---
+
+<section class="hero" data-section="hero">
+  <img
+    class="hero__image"
+    src={hero.image}
+    alt=""
+    aria-hidden="true"
+    fetchpriority="high"
+    style={hero.imageBrightness ? `filter: brightness(${hero.imageBrightness})` : undefined}
+  />
+  <div class="hero__scrim"></div>
+
+  <div class="hero__inner container">
+    <p class="kicker">{hero.kicker}</p>
+    <h1 class="hero__title">{hero.title}</h1>
+    <p class="hero__lead">{hero.lead}</p>
+
+    <div class="hero__actions">
+      <Cta kind="primary" href={startUrl(segment)} placement="hero">{ctaLabels.free}</Cta>
+      <Cta kind="secondary" href={secondary.href} placement={secondary.placement}>
+        {secondary.label}
+      </Cta>
+    </div>
+
+    <ul class="hero__trust">
+      {hero.trust.map((item) => <li>{item}</li>)}
+    </ul>
+  </div>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 82vh;
+    display: flex;
+    align-items: center;
+    overflow: hidden;
+  }
+
+  .hero__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .hero__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      88deg,
+      rgba(247, 242, 231, 0.97) 0%,
+      rgba(247, 242, 231, 0.93) 48%,
+      rgba(247, 242, 231, 0.5) 85%,
+      rgba(247, 242, 231, 0.2) 100%
+    );
+  }
+
+  .hero__inner {
+    position: relative;
+    padding-block: var(--section-y);
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .hero__title {
+    font-family: var(--font-display);
+    /* 60px — предел, при котором заголовок героя ещё держится в одну строку
+       на 1440px. Подобрано замером, не на глаз. */
+    font-size: clamp(36px, 5.6vw, 60px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+  }
+
+  .hero__lead {
+    font-size: clamp(18px, 2.2vw, 26px);
+    line-height: 1.45;
+    color: var(--text-lead);
+    /* Мера для читаемости абзаца — в отличие от заголовка, его резать нужно. */
+    max-width: 54ch;
+  }
+
+  .hero__actions {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .hero__trust {
+    margin: 0;
+    padding: 8px 0 0;
+    list-style: none;
+    display: flex;
+    gap: 32px;
+    flex-wrap: wrap;
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+</style>

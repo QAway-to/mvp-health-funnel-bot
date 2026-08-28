@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import Landing from '../layouts/Landing.astro';
+import { zakalivanie } from '../content/zakalivanie';
+---
+
+<Landing meta={zakalivanie.meta} path="/zakalivanie/">
+  <LandingPage content={zakalivanie} />
+</Landing>

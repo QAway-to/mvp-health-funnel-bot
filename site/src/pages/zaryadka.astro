@@ -1,0 +1,9 @@
+---
+import LandingPage from '../components/LandingPage.astro';
+import { zaryadka } from '../content/zaryadka';
+import Landing from '../layouts/Landing.astro';
+---
+
+<Landing meta={zaryadka.meta} path="/zaryadka/">
+  <LandingPage content={zaryadka} />
+</Landing>

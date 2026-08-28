@@ -1,0 +1,106 @@
+---
+import type { Program } from '../content/types';
+
+interface Props {
+  program: Program;
+  tone: 'base' | 'alt';
+}
+
+const { program, tone } = Astro.props;
+---
+
+<section id="program" class={`section section--${tone}`} data-section="program">
+  <div class="container stack">
+    <p class="kicker">{program.kicker}</p>
+    <h2 class="h2 program__title">{program.title}</h2>
+
+    <div class="program__blocks">
+      {
+        program.blocks.map((block) => (
+          <article class="program__block">
+            <p class="program__label">{block.label}</p>
+            <h3 class="program__block-title">{block.title}</h3>
+            <p class="program__block-text">{block.text}</p>
+          </article>
+        ))
+      }
+    </div>
+
+    <div class="program__extras">
+      {
+        program.extras.map((extra) => (
+          <article class="program__extra">
+            <h3 class="program__extra-title">{extra.title}</h3>
+            <p class="program__extra-text">{extra.text}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+    .program__blocks {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 26px;
+  }
+
+  .program__block {
+    background: var(--card-primary);
+    border-top: 5px solid var(--accent);
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .program__label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .program__block-title {
+    font-family: var(--font-display);
+    font-size: 28px;
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .program__block-text {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-card);
+  }
+
+  .program__extras {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 26px;
+  }
+
+  .program__extra {
+    border-top: 1px solid var(--border-soft);
+    padding-top: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .program__extra-title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--accent-text);
+  }
+
+  .program__extra-text {
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+</style>

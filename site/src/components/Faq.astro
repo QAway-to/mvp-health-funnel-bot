@@ -1,0 +1,89 @@
+---
+import type { Faq } from '../content/types';
+
+interface Props {
+  faq: Faq;
+  tone: 'base' | 'alt';
+}
+
+const { faq, tone } = Astro.props;
+
+/**
+ * Разметка вопросов для поисковика.
+ *
+ * Отдаётся отсюда, а не из макета: так она физически не может разойтись
+ * с тем, что человек видит на странице, и появляется ровно там, где вопросы
+ * действительно есть.
+ */
+const faqSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'FAQPage',
+  mainEntity: faq.items.map((item) => ({
+    '@type': 'Question',
+    name: item.question,
+    acceptedAnswer: { '@type': 'Answer', text: item.answer },
+  })),
+};
+
+/**
+ * Аккордеон в хендоффе помечен как опциональный, а сам макет — high-fidelity,
+ * поэтому вопросы и ответы видны сразу, в две колонки, как в прототипе.
+ */
+---
+
+<section id="faq" class={`section section--${tone}`} data-section="faq">
+  <div class="container faq">
+    <p class="kicker kicker--faq">{faq.kicker}</p>
+    <h2 class="h2 faq__title">{faq.title}</h2>
+
+    <div class="faq__list">
+      {
+        faq.items.map((item) => (
+          <article class="faq__item">
+            <h3 class="faq__question">{item.question}</h3>
+            <p class="faq__answer">{item.answer}</p>
+          </article>
+        ))
+      }
+    </div>
+  </div>
+
+  <script type="application/ld+json" set:html={JSON.stringify(faqSchema)} is:inline />
+</section>
+
+<style>
+  .faq {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+  }
+
+    .faq__list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .faq__item {
+    background: var(--card-secondary);
+    border-left: 3px solid var(--accent);
+    padding: 24px 28px;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 20px;
+    align-items: start;
+  }
+
+  .faq__question {
+    font-family: var(--font-display);
+    font-size: 22px;
+    font-weight: 800;
+    line-height: 1.15;
+  }
+
+  .faq__answer {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
+</style>

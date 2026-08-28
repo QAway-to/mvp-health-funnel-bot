@@ -1,0 +1,126 @@
+---
+import Cta from './Cta.astro';
+import { routes } from '../config/site';
+import { startUrl } from '../lib/leadLink';
+import type { NavLink } from '../content/types';
+
+/**
+ * В шапке стоит бесплатная ступень, а не покупка: продажный CTA не
+ * появляется раньше 60% глубины страницы, а шапка видна всегда.
+ */
+
+interface Props {
+  brand: string;
+  brandHref?: string;
+  nav: readonly NavLink[];
+  /** На самой странице /start/ кнопка вела бы на неё же — прячем. */
+  showCta?: boolean;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
+}
+
+const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.props;
+---
+
+<header class="header">
+  <div class="header__inner container">
+    <a class="header__brand" href={brandHref}>{brand}</a>
+
+    <nav class="header__nav" aria-label="Основная навигация">
+      {nav.map((link) => <a class="header__link" href={link.href}>{link.label}</a>)}
+    </nav>
+
+    {
+      showCta && (
+        <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
+          Первый шаг бесплатно
+        </Cta>
+      )
+    }
+  </div>
+</header>
+
+<style>
+  .header {
+    position: sticky;
+    top: 0;
+    z-index: 20;
+    background: rgba(247, 242, 231, 0.92);
+    border-bottom: 1px solid var(--border-hairline);
+    backdrop-filter: blur(8px);
+  }
+
+  .header__inner {
+    padding-block: 16px;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
+  .header__brand {
+    color: var(--text);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 20px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+
+  .header__nav {
+    /* Ссылки и кнопка прижаты вправо, как в макете. */
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .header__link {
+    font-size: 16px;
+    color: var(--text-secondary);
+  }
+
+  .header__link:hover {
+    color: var(--accent-hover);
+  }
+
+  .header__brand:hover {
+    color: var(--accent-hover);
+  }
+
+  /* На узких экранах три элемента в одну строку не помещаются и хедер
+     разрастается на три ряда. Складываем в два: логотип с кнопкой, ссылки под ними. */
+  @media (max-width: 719px) {
+    .header__inner {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      grid-template-areas:
+        'brand cta'
+        'nav nav';
+      gap: 12px 16px;
+      align-items: center;
+    }
+
+    /* Длинное имя («Федерация здоровья») в одну строку рядом с кнопкой
+       не помещается и выталкивает её за экран: колонка grid-а по умолчанию
+       не сжимается ниже min-content. Разрешаем перенос и сжатие. */
+    .header__brand {
+      grid-area: brand;
+      font-size: 15px;
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .header__nav {
+      grid-area: nav;
+      margin-left: 0;
+      gap: 20px;
+    }
+
+    .header__cta {
+      grid-area: cta;
+      padding: 10px 16px;
+      font-size: 15px;
+    }
+  }
+</style>

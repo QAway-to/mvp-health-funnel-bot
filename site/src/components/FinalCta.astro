@@ -1,0 +1,109 @@
+---
+import Cta from './Cta.astro';
+import { featuredTier } from '../lib/offer';
+import type { FinalCta } from '../content/types';
+
+/**
+ * Последний экран. Куда ведёт кнопка и что на ней написано, решает
+ * src/lib/offer.ts: пока оплаты нет, финальный призыв зовёт на бесплатную
+ * ступень, а не на несуществующий чекаут.
+ */
+
+interface Props {
+  finalCta: FinalCta;
+  /** Сегмент страницы: едет с человеком до самого бота. */
+  segment?: string;
+}
+
+const { finalCta, segment } = Astro.props;
+
+const featured = featuredTier(segment);
+---
+
+<section class="final" data-section="final">
+  <img
+    class="final__image"
+    src={finalCta.image}
+    alt=""
+    aria-hidden="true"
+    loading="lazy"
+    decoding="async"
+    style={`filter: brightness(${finalCta.imageBrightness})`}
+  />
+  <div class="final__scrim"></div>
+
+  <div class="final__inner container">
+    <h2 class="final__title">{finalCta.title}</h2>
+    <p class="final__lead">{finalCta.lead}</p>
+
+    <div class="final__actions">
+      <Cta kind={featured.kind} href={featured.href} placement="final">
+        {featured.ctaLabel}
+      </Cta>
+      {finalCta.note && <p class="final__note">{finalCta.note}</p>}
+    </div>
+  </div>
+</section>
+
+<style>
+  .final {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .final__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .final__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      88deg,
+      rgba(247, 242, 231, 0.97) 0%,
+      rgba(247, 242, 231, 0.94) 55%,
+      rgba(247, 242, 231, 0.86) 78%,
+      rgba(247, 242, 231, 0.6) 100%
+    );
+  }
+
+  .final__inner {
+    position: relative;
+    padding-block: 96px;
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+  }
+
+  .final__title {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 5vw, 64px);
+    font-weight: 800;
+    line-height: 1.04;
+    letter-spacing: -0.03em;
+  }
+
+  .final__lead {
+    font-size: clamp(18px, 2.2vw, 24px);
+    line-height: 1.45;
+    color: var(--text-lead);
+    max-width: 48ch;
+  }
+
+  .final__actions {
+    display: flex;
+    gap: 18px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .final__note {
+    font-size: 17px;
+    /* Подпись лежит поверх фото — берём более тёмный тон, чем у muted. */
+    color: var(--text-secondary);
+  }
+</style>

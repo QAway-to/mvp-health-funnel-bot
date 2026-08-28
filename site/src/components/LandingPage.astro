@@ -1,0 +1,71 @@
+---
+import AuthorSection from './AuthorSection.astro';
+import Effects from './Effects.astro';
+import Faq from './Faq.astro';
+import FinalCta from './FinalCta.astro';
+import Hero from './Hero.astro';
+import Mechanism from './Mechanism.astro';
+import Mirror from './Mirror.astro';
+import Plan from './Plan.astro';
+import Program from './Program.astro';
+import Reasons from './Reasons.astro';
+import SiteFooter from './SiteFooter.astro';
+import SiteHeader from './SiteHeader.astro';
+import StickyCta from './StickyCta.astro';
+import Subscription from './Subscription.astro';
+import Testimonials from './Testimonials.astro';
+import { testimonialsFor } from '../content/testimonials';
+import type { LandingContent } from '../content/types';
+
+interface Props {
+  content: LandingContent;
+}
+
+const { content } = Astro.props;
+
+/* Пустая секция не должна съедать очередь фонов: nextTone() вызывается только
+   тогда, когда секция действительно рисуется, иначе два одинаковых фона
+   встанут подряд. */
+const hasTestimonials = testimonialsFor(content.slug).length > 0;
+
+/**
+ * Фон секций чередуется: первая после hero — тёмная (`alt`), дальше через одну.
+ * Секции необязательные, поэтому очередь тона считается на лету: пропущенная
+ * секция не оставляет два одинаковых фона подряд.
+ */
+let toneIndex = 0;
+const nextTone = (): 'base' | 'alt' => (toneIndex++ % 2 === 0 ? 'alt' : 'base');
+
+/**
+ * Вопросы стоят ПЕРЕД ценой, а не после.
+ *
+ * Возражение «дорого» разбирается там же, в вопросах, и разбирать его после
+ * того, как человек увидел сумму, поздно: к цене он приходит уже с ответом,
+ * а не с сомнением. Отзывы идут ещё раньше — чужой результат отвечает на
+ * «а сработает ли у меня» до того, как этот вопрос станет возражением.
+ *
+ * Секция отзывов сама решает, рисоваться ли ей: пока настоящих отзывов нет,
+ * её не будет ни на одной странице.
+ */
+---
+
+<SiteHeader brand={content.brand} nav={content.nav} segment={content.slug} />
+
+<main>
+  <Hero hero={content.hero} segment={content.slug} />
+  {content.mirror && <Mirror mirror={content.mirror} tone={nextTone()} />}
+  {content.reasons && <Reasons reasons={content.reasons} tone={nextTone()} />}
+  {content.mechanism && <Mechanism mechanism={content.mechanism} tone={nextTone()} />}
+  {content.effects && <Effects effects={content.effects} tone={nextTone()} />}
+  {content.program && <Program program={content.program} tone={nextTone()} />}
+  {content.plan && <Plan plan={content.plan} tone={nextTone()} />}
+  {content.author && <AuthorSection author={content.author} tone={nextTone()} />}
+  {hasTestimonials && <Testimonials tone={nextTone()} segment={content.slug} />}
+  <Faq faq={content.faq} tone={nextTone()} />
+  <Subscription tone={nextTone()} segment={content.slug} />
+  <FinalCta finalCta={content.finalCta} segment={content.slug} />
+</main>
+
+<StickyCta segment={content.slug} />
+
+<SiteFooter />

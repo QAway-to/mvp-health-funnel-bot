@@ -1,0 +1,313 @@
+---
+import Cta from '../components/Cta.astro';
+import SiteFooter from '../components/SiteFooter.astro';
+import SiteHeader from '../components/SiteHeader.astro';
+import Subscription from '../components/Subscription.astro';
+import Testimonials from '../components/Testimonials.astro';
+import { site } from '../config/site';
+import { ctaLabels } from '../content/cta';
+import { directions, liveDirections, soonDirections } from '../content/directions';
+import { hubNav } from '../content/nav';
+import { testimonialsFor } from '../content/testimonials';
+import { startUrl } from '../lib/leadLink';
+import Landing from '../layouts/Landing.astro';
+
+/**
+ * Хаб направлений — пункт плана П14 («мини-сайт на все продукты»).
+ *
+ * Раньше на корне стояла развилка двух беговых лендингов. Бег переехал на
+ * `/beg/`, а корень собирает все направления Федерации: и открытые, и те,
+ * что заявлены планом и ещё готовятся.
+ *
+ * Список берётся из реестра, а не пишется здесь руками: открылось
+ * направление — карточка появилась и на главной, и в блоке подписки.
+ */
+const meta = {
+  title: 'Федерация здоровья — направления здорового образа жизни',
+  description:
+    'Бег, сон, закаливание, вредные привычки, зарядка, массаж и самомассаж — и ещё четыре направления в работе. Одна подписка на всё, первый шаг бесплатно.',
+  ogImage: '/img/silhouettes.jpg',
+};
+
+const liveCount = liveDirections.length;
+const totalCount = directions.length;
+
+/**
+ * Склонение слова «направление» под число.
+ *
+ * Раньше в заголовке стояло «Ещё 6 направлений» жёстким текстом, и это
+ * работало ровно до того дня, когда готовящихся стало четыре. Числа берутся
+ * из реестра, значит и форма слова должна браться оттуда же.
+ */
+const directionWord = (count: number): string => {
+  const tail = count % 100;
+  if (tail >= 11 && tail <= 14) return 'направлений';
+  switch (count % 10) {
+    case 1:
+      return 'направление';
+    case 2:
+    case 3:
+    case 4:
+      return 'направления';
+    default:
+      return 'направлений';
+  }
+};
+
+/* Ссылка у готовящегося направления может быть, а может и не быть: сейчас
+   страниц нет ни у одного, и обещать их в подводке нельзя. */
+const someSoonHavePages = soonDirections.some((direction) => Boolean(direction.href));
+
+/* Тон следующей секции зависит от того, покажутся ли отзывы: иначе два
+   одинаковых фона встанут подряд. */
+const hasTestimonials = testimonialsFor('all').length > 0;
+---
+
+<Landing meta={meta} path="/">
+  <SiteHeader brand={site.brand} nav={hubNav} segment="home" />
+
+  <main>
+    <section class="intro" data-section="hub_intro">
+      <div class="container intro__inner">
+        <p class="kicker">Федерация здоровья</p>
+        <h1 class="intro__title">Здоровье собирается из привычек, а не из курсов</h1>
+        <p class="intro__lead">
+          Сон тянет за собой утро, утро — нагрузку, нагрузка — восстановление. Поэтому
+          направлений десять, а подписка одна: браться за них по очереди можно,
+          покупать по отдельности — незачем.
+        </p>
+
+        <div class="intro__actions">
+          <Cta kind="primary" href={startUrl('home')} placement="hub_hero">{ctaLabels.free}</Cta>
+          <Cta kind="secondary" href="#directions" placement="hub_directions">
+            Смотреть направления
+          </Cta>
+        </div>
+      </div>
+    </section>
+
+    <section id="directions" class="section section--alt" data-section="directions">
+      <div class="container stack">
+        <p class="kicker">Направления</p>
+        <h2 class="h2">Открыто {liveCount} из {totalCount}</h2>
+
+        <div class="cards">
+          {
+            liveDirections.map((direction) => (
+              <a class="card" href={direction.href}>
+                {direction.image && (
+                  <img class="card__image" src={direction.image} alt="" aria-hidden="true" loading="lazy" decoding="async" />
+                )}
+                <span class="card__scrim" />
+                <span class="card__body">
+                  <span class="card__title">{direction.title}</span>
+                  <span class="card__text">{direction.promise}</span>
+                  <span class="card__action">Смотреть →</span>
+                </span>
+              </a>
+            ))
+          }
+        </div>
+      </div>
+    </section>
+
+    <section class="section section--base" data-section="directions_soon">
+      <div class="container stack">
+        <p class="kicker">Готовятся</p>
+        <h2 class="h2">
+          Ещё {soonDirections.length} {directionWord(soonDirections.length)} в работе
+        </h2>
+        <p class="soon__lead">
+          Они заявлены в плане Федерации и откроются подписчикам без доплаты.
+          {someSoonHavePages && ' У части из них страница уже готова — материал дописывается.'}
+          Порядок зависит от того, чего просят чаще: написать об этом можно в боте.
+        </p>
+
+        <ul class="soon">
+          {
+            soonDirections.map((direction) => (
+              <li class="soon__item">
+                {direction.href ? (
+                  <a class="soon__title soon__title--link" href={direction.href}>
+                    {direction.title} →
+                  </a>
+                ) : (
+                  <span class="soon__title">{direction.title}</span>
+                )}
+                <span class="soon__text">{direction.promise}</span>
+              </li>
+            ))
+          }
+        </ul>
+      </div>
+    </section>
+
+    {hasTestimonials && <Testimonials tone="alt" segment="all" />}
+
+    <Subscription tone={hasTestimonials ? 'base' : 'alt'} segment="home" />
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .intro {
+    padding-block: clamp(56px, 9vw, 112px);
+  }
+
+  .intro__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .intro__title {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5.4vw, 64px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    max-width: 20ch;
+  }
+
+  .intro__lead {
+    font-size: clamp(18px, 2.2vw, 23px);
+    line-height: 1.5;
+    color: var(--text-lead);
+    max-width: 58ch;
+  }
+
+  .intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 8px;
+  }
+
+  /* Открытые направления — карточки с фотографией.
+     Минимум 280px: при трёх колонках карточка не должна ужиматься до полоски. */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    position: relative;
+    display: block;
+    min-height: 340px;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    color: var(--text);
+  }
+
+  .card:hover {
+    border-color: var(--accent-text);
+    color: var(--text);
+  }
+
+  .card__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(1.04);
+    transition: transform 300ms ease;
+  }
+
+  .card:hover .card__image {
+    transform: scale(1.03);
+  }
+
+  .card__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(247, 242, 231, 0) 0%,
+      rgba(247, 242, 231, 0.62) 36%,
+      rgba(247, 242, 231, 0.99) 58%
+    );
+  }
+
+  .card__body {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card__title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  .card__text {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .card__action {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--accent-text);
+    padding-top: 4px;
+  }
+
+  .soon__lead {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--text-lead);
+    max-width: 62ch;
+  }
+
+  /* Готовящиеся направления — списком, а не карточками: они не входят в
+     подписку, и выглядеть наравне с открытыми не должны. Ссылка появляется
+     только у тех, где страница уже есть: она собирает заявки в бота. */
+  .soon {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px 32px;
+  }
+
+  .soon__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .soon__title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .soon__title--link {
+    color: var(--accent-text);
+  }
+
+  .soon__title--link:hover {
+    color: var(--accent-hover);
+  }
+
+  .soon__text {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

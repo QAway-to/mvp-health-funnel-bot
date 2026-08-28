@@ -1,0 +1,316 @@
+/*
+ * Дизайн-токены и базовые примитивы.
+ * Значения взяты из хендоффа (docs/design-handoff.md), менять только вместе с макетом.
+ */
+
+:root {
+  /* Светлая бежевая тема. Все пары «текст на фоне» проверены на контраст
+     WCAG AA (>= 4.5:1) — скриптом, а не на глаз. Менять цвета только вместе
+     с перепроверкой контраста. */
+
+  /* Фоны */
+  --bg-base: #f7f2e7;
+  --bg-alt: #efe7d6;
+  --card-secondary: #fcf9f3;
+  --card-primary: #f0e7d5;
+
+  /* Текст */
+  --text: #17150f;
+  --text-card: #2b261c;
+  --text-lead: #463f31;
+  --text-secondary: #57503f;
+  --text-muted: #6b6352;
+  --text-footer: #6f6857;
+
+  /* Акценты.
+     --accent — только заливка (кнопки, линии, маркеры): на светлом фоне
+     жёлтый как текст даёт контраст ~1.6:1 и читаться не будет.
+     --accent-text — тот же акцент, затемнённый до читаемого. */
+  --accent: #e8b23c;
+  --accent-text: #8a5a08;
+  --accent-hover: #6e4706;
+  --accent-problem: #a8441f;
+  --accent-faq: #6b3f80;
+  --on-accent: #12100d;
+
+  /* Границы */
+  --border-hairline: #e3d9c4;
+  --border-soft: #d8ccb2;
+  --border-strong: #b6a88d;
+
+  /* Затемнение фотографий под светлый текст поверх них */
+  --photo-scrim: rgba(28, 24, 16, 0.55);
+
+  /* Типографика */
+  --font-display: 'Onest', system-ui, sans-serif;
+  --font-body: 'Golos Text', system-ui, sans-serif;
+
+  /* Геометрия */
+  --container: 1200px;
+  --gutter: 24px;
+  --section-y: 80px;
+  --radius-button: 2px;
+
+  /* Компенсация sticky-хедера при переходе по якорю.
+     На мобильном хедер выше — два ряда вместо одного. */
+  --header-offset: 112px;
+}
+
+@media (min-width: 720px) {
+  :root {
+    --header-offset: 88px;
+  }
+}
+
+@media (max-width: 719px) {
+  body:has([data-sticky-cta]) {
+    padding-bottom: 84px;
+  }
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+body {
+  margin: 0;
+  /* Место под закреплённую панель CTA — она есть только на мобильном. */
+  padding-bottom: 0;
+  width: 100%;
+  overflow-x: hidden;
+  background: var(--bg-base);
+  color: var(--text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+}
+
+img {
+  display: block;
+  max-width: 100%;
+}
+
+a {
+  color: var(--accent-text);
+  text-decoration: none;
+  transition: color 150ms ease, background-color 150ms ease, border-color 150ms ease;
+}
+
+a:hover {
+  color: var(--accent-hover);
+}
+
+:where(a, button, summary):focus-visible {
+  outline: 2px solid var(--accent-hover);
+  outline-offset: 3px;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+/* Там, где перенос неизбежен (узкие экраны, колонки), строки делятся
+   равномерно — без одинокого слова на последней строке. */
+h1,
+h2,
+h3,
+.h2,
+.rule-card__title {
+  text-wrap: balance;
+}
+
+[id] {
+  scroll-margin-top: var(--header-offset);
+}
+
+/* ---------- Примитивы ---------- */
+
+.container {
+  /* width обязателен: как флекс-элемент контейнер иначе сжимается
+     по содержимому и теряет общий левый край с остальными секциями. */
+  width: 100%;
+  max-width: var(--container);
+  margin-inline: auto;
+  padding-inline: var(--gutter);
+}
+
+.section {
+  padding-block: var(--section-y);
+}
+
+.section--base {
+  background: var(--bg-base);
+}
+
+.section--alt {
+  background: var(--bg-alt);
+  border-top: 1px solid var(--border-hairline);
+}
+
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 36px;
+}
+
+.kicker {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+  color: var(--accent-text);
+}
+
+.kicker--problem {
+  color: var(--accent-problem);
+}
+
+.kicker--faq {
+  color: var(--accent-faq);
+}
+
+.h2 {
+  font-family: var(--font-display);
+  /* Верхняя граница 46px подобрана замером: при ней самый длинный заголовок
+     («Два варианта: разобраться самому или с разбором») укладывается
+     в одну строку внутри контейнера 1152px. Ограничение по ch убрано —
+     именно оно рвало короткие заголовки вроде «Четыре блока плюс карта недели». */
+  font-size: clamp(28px, 3.6vw, 46px);
+  font-weight: 800;
+  line-height: 1.06;
+  letter-spacing: -0.025em;
+}
+
+.closer {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 24px;
+  font-family: var(--font-display);
+  font-size: clamp(20px, 2.4vw, 30px);
+  font-weight: 800;
+  color: var(--accent-text);
+}
+
+.note {
+  border-top: 1px solid var(--border-soft);
+  padding-top: 24px;
+  font-size: 18px;
+  line-height: 1.5;
+  color: var(--accent-text);
+}
+
+/* Карточка-линия: заголовок под цветной чертой, без фона. */
+.rule-card {
+  padding-top: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rule-card--problem {
+  border-top: 3px solid var(--accent-problem);
+}
+
+.rule-card--accent {
+  border-top: 3px solid var(--accent);
+}
+
+.rule-card__label {
+  font-family: var(--font-display);
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: var(--accent-problem);
+}
+
+.rule-card__title {
+  font-family: var(--font-display);
+  font-size: 26px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.rule-card__text {
+  font-size: 17px;
+  line-height: 1.55;
+  color: var(--text-secondary);
+}
+
+.grid {
+  display: grid;
+}
+
+/* ---------- Кнопки ---------- */
+
+.btn {
+  display: inline-block;
+  font-family: var(--font-display);
+  font-weight: 800;
+  border-radius: var(--radius-button);
+  text-align: center;
+  /* Хит-таргет не меньше 44px даже у самой мелкой кнопки. */
+  min-height: 44px;
+}
+
+.btn--primary {
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.btn--primary:hover {
+  background: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.btn--ghost {
+  border: 1px solid var(--border-strong);
+  color: var(--text-card);
+  font-weight: 700;
+  background: transparent;
+}
+
+.btn--ghost:hover {
+  border-color: var(--accent-hover);
+  color: var(--accent-hover);
+}
+
+.btn--sm {
+  font-size: 16px;
+  padding: 12px 22px;
+}
+
+.btn--md {
+  font-size: 18px;
+  padding: 18px 28px;
+}
+
+.btn--lg {
+  font-size: 20px;
+  padding: 20px 36px;
+}
+
+/* У контурной кнопки рамка съедает пиксель — компенсируем padding. */
+.btn--ghost.btn--lg {
+  padding: 19px 32px;
+}

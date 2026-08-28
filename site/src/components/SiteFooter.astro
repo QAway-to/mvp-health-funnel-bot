@@ -1,0 +1,71 @@
+---
+import { site } from '../config/site';
+import { isFilled } from '../lib/offer';
+
+/**
+ * Юридические ссылки рисуются только заполненные. Пустой `href` ведёт на
+ * текущую же страницу: человек кликает «Оферта» и остаётся на месте, решив,
+ * что сайт сломан. Лучше не показать ссылку, чем показать неработающую.
+ */
+const legalLinks = [
+  { label: 'Оферта', href: site.links.offer },
+  { label: 'Политика конфиденциальности', href: site.links.privacy },
+  { label: 'Связаться', href: site.links.contact },
+].filter((link) => isFilled(link.href));
+---
+
+<footer class="footer">
+  <div class="footer__inner container">
+    <p class="footer__legal">
+      {site.brand} · {site.legal.year} · {site.legal.entity}
+    </p>
+
+    {
+      legalLinks.length > 0 && (
+        <nav class="footer__links" aria-label="Правовая информация">
+          {legalLinks.map((link) => (
+            <a class="footer__link" href={link.href}>
+              {link.label}
+            </a>
+          ))}
+        </nav>
+      )
+    }
+  </div>
+</footer>
+
+<style>
+  .footer {
+    background: var(--bg-base);
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .footer__inner {
+    padding-block: 40px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .footer__legal {
+    font-size: 15px;
+    color: var(--text-footer);
+  }
+
+  .footer__links {
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+
+  .footer__link {
+    font-size: 15px;
+    color: var(--text-footer);
+  }
+
+  .footer__link:hover {
+    color: var(--accent-hover);
+  }
+</style>

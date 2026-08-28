@@ -1,0 +1,390 @@
+---
+import { site } from '../config/site';
+import { liveDirections, soonDirections } from '../content/directions';
+import { subscriptionContent } from '../content/subscription';
+import { hasAnyCheckout, resolveTiers } from '../lib/offer';
+import { startUrl } from '../lib/leadLink';
+import Cta from './Cta.astro';
+
+/**
+ * Блок платной ступени: подписка на все направления, три уровня доступа.
+ *
+ * Что входит, компонент не переписывает руками: список направлений он берёт
+ * из реестра. Открылось новое направление — строка появилась здесь сама.
+ *
+ * Пока оплата не подключена, кнопок на карточках нет вовсе: три одинаковых
+ * «Первый шаг бесплатно» под тремя разными ценами читаются как ошибка вёрстки.
+ * Вместо них — один общий призыв под сеткой. Как только у уровня появится
+ * ссылка оплаты, кнопка вернётся на его карточку. См. src/lib/offer.ts.
+ */
+
+interface Props {
+  tone: 'base' | 'alt';
+  /** Сегмент страницы: едет с человеком до бота, если чекаута ещё нет. */
+  segment?: string;
+}
+
+const { tone, segment } = Astro.props;
+
+const tiers = resolveTiers(segment);
+const checkoutReady = hasAnyCheckout();
+const terms = site.subscription.terms;
+const soonNames = soonDirections.map((direction) => direction.title.toLowerCase()).join(', ');
+const materialsOnly = liveDirections.filter((direction) => direction.depth === 'materials');
+---
+
+<section id="price" class={`section section--${tone}`} data-section="price">
+  <div class="container stack">
+    <p class="kicker">{subscriptionContent.kicker}</p>
+    <h2 class="h2">{subscriptionContent.title}</h2>
+    <p class="subscription__lead">{subscriptionContent.lead}</p>
+
+    <div class="subscription__grid">
+      {
+        tiers.map((tier) => {
+          /* Рекомендуемый уровень — тот, у которого есть метка. Он же
+             единственный с яркой кнопкой: если выделены все, не выделен никто. */
+          const featured = Boolean(tier.badge);
+          return (
+            <article class:list={['tier', featured ? 'tier--featured' : 'tier--plain']}>
+              {tier.badge && <p class="tier__badge">{tier.badge}</p>}
+              <p class:list={['tier__label', featured && 'tier__label--accent']}>{tier.label}</p>
+              {tier.priceLabel && (
+                <p class:list={['tier__price', featured && 'tier__price--accent']}>{tier.priceLabel}</p>
+              )}
+              <p class:list={['tier__text', featured && 'tier__text--bright']}>{tier.text}</p>
+
+              <ul class="tier__features">
+                {tier.features.map((feature) => (
+                  <li class="tier__feature">
+                    <span class:list={['tier__marker', featured && 'tier__marker--accent']} aria-hidden="true" />
+                    <span>{feature}</span>
+                  </li>
+                ))}
+              </ul>
+
+              {tier.hasCheckout && (
+                <Cta
+                  kind={tier.kind}
+                  href={tier.href}
+                  placement={`price_${tier.id}`}
+                  size="md"
+                  class:list={['tier__cta', !featured && 'tier__cta--outline']}
+                >
+                  {tier.ctaLabel}
+                </Cta>
+              )}
+            </article>
+          );
+        })
+      }
+    </div>
+
+    <div class="subscription__included">
+      <div class="subscription__included-head">
+        <p class="subscription__included-title">На любом уровне открыто</p>
+        <ul class="subscription__perks">
+          {subscriptionContent.features.map((feature) => <li class="subscription__perk">{feature}</li>)}
+        </ul>
+      </div>
+
+      {/* Пометка «материалы» отличает направления, где открыт весь материал,
+          но пошагового курса ещё нет. Человек должен видеть эту разницу до
+          оплаты, а не обнаружить её после. */}
+      <ul class="subscription__list">
+        {
+          liveDirections.map((direction) => (
+            <li class="subscription__item">
+              <span class="subscription__item-head">
+                <span class="subscription__item-title">{direction.title}</span>
+                {direction.depth === 'materials' && (
+                  <span class="subscription__item-note">материалы</span>
+                )}
+              </span>
+              <span class="subscription__item-text">{direction.promise}</span>
+            </li>
+          ))
+        }
+      </ul>
+    </div>
+
+    {
+      materialsOnly.length > 0 && (
+        <p class="subscription__note">
+          Пометка «материалы» — направление открыто целиком, но пошагового курса
+          по нему пока нет: {materialsOnly.map((d) => d.title.toLowerCase()).join(' и ')}.
+        </p>
+      )
+    }
+
+    {
+      !checkoutReady && (
+        <div class="subscription__pending">
+          <Cta kind="primary" href={startUrl(segment)} placement="price_pending" size="md">
+            Забрать первый шаг бесплатно
+          </Cta>
+          <p class="subscription__note">
+            Оплата подключается. Пока доступна бесплатная ступень — о запуске сообщим первым.
+          </p>
+        </div>
+      )
+    }
+
+    <div class="subscription__terms">
+      {soonNames && <p class="subscription__note">Готовятся: {soonNames}.</p>}
+      {checkoutReady && terms && <p class="subscription__note">{terms}</p>}
+    </div>
+  </div>
+</section>
+
+<style>
+  .subscription__lead {
+    font-size: 19px;
+    line-height: 1.6;
+    color: var(--text-lead);
+    max-width: 66ch;
+  }
+
+  /* Три уровня: на десктопе в ряд, на планшете — сколько влезет по 280px,
+     на телефоне в столбец. auto-fit разложит сам. */
+  .subscription__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+    /* Растягиваем по высоте: карточки разной высоты читаются как разные по
+       весу предложения, хотя отличаются только длиной текста. Кнопка внутри
+       прижата к низу, поэтому все три встают в одну линию. */
+    align-items: stretch;
+  }
+
+  .tier {
+    padding: 36px 32px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    position: relative;
+  }
+
+  .tier--plain {
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  .tier--featured {
+    background: var(--card-primary);
+    border: 1px solid var(--accent);
+  }
+
+  .tier__badge {
+    position: absolute;
+    top: 0;
+    right: 0;
+    background: var(--accent);
+    color: var(--on-accent);
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 0.14em;
+    padding: 8px 14px;
+  }
+
+  .tier__label {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .tier__label--accent {
+    color: var(--accent-text);
+  }
+
+  .tier__price {
+    font-family: var(--font-display);
+    font-size: clamp(28px, 3.4vw, 40px);
+    font-weight: 800;
+    line-height: 1;
+  }
+
+  .tier__price--accent {
+    color: var(--accent-text);
+  }
+
+  .tier__text {
+    font-size: 17px;
+    line-height: 1.55;
+    color: var(--text-secondary);
+    /* Место под три строки. Абзацы у уровней разной длины, и без этого списки
+       начинались бы на разной высоте — карточки выглядели бы съехавшими,
+       даже когда их внешняя высота одинакова. */
+    min-height: calc(3 * 1.55em);
+  }
+
+  .tier__text--bright {
+    color: var(--text-card);
+  }
+
+  .tier__features {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .tier__feature {
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-card);
+  }
+
+  .tier__marker {
+    width: 8px;
+    height: 8px;
+    margin-top: 8px;
+    flex: none;
+    background: var(--text-muted);
+  }
+
+  .tier__marker--accent {
+    background: var(--accent);
+  }
+
+  /* Кнопку рисует компонент Cta, поэтому scoped-селектор до неё не долетает:
+     оборачиваем в :global, оставляя привязку к карточке. */
+  .tier :global(.tier__cta) {
+    /* Прижата к низу, чтобы карточки выравнивались по нижнему краю. */
+    margin-top: auto;
+  }
+
+  /* База — тоже покупка, но визуально уступает премиуму. */
+  .tier :global(.tier__cta--outline) {
+    background: transparent;
+    border: 1px solid var(--border-strong);
+    color: var(--text-card);
+  }
+
+  .tier :global(.tier__cta--outline:hover) {
+    background: transparent;
+    border-color: var(--accent-text);
+    color: var(--accent-hover);
+  }
+
+  .subscription__included {
+    display: grid;
+    grid-template-columns: minmax(240px, 320px) 1fr;
+    gap: 28px 32px;
+    padding: 32px;
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+  }
+
+  @media (max-width: 899px) {
+    .subscription__included {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .subscription__included-head {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .subscription__included-title {
+    font-family: var(--font-display);
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .subscription__perks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .subscription__perk {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-card);
+  }
+
+  .subscription__list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px 28px;
+  }
+
+  .subscription__item {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding-top: 12px;
+    border-top: 1px solid var(--border-hairline);
+  }
+
+  .subscription__item-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .subscription__item-note {
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+    border: 1px solid var(--border-soft);
+    padding: 1px 6px;
+  }
+
+  .subscription__item-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .subscription__item-text {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  /* Общий призыв, пока кнопок на карточках нет. */
+  .subscription__pending {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 16px 24px;
+  }
+
+  .subscription__terms {
+    display: flex;
+    gap: 12px 32px;
+    flex-wrap: wrap;
+  }
+
+  .subscription__note {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>
