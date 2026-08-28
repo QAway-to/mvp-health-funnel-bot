@@ -211,6 +211,13 @@ _MAX_CONVERSATIONS = 500   # сколько чатов держим в памя�
 # Состояние пользователей живёт в utils/funnel_store (Sheets + кеш в памяти),
 # ролики — в приватном канале (utils/content_library).
 _FUNNEL_CTA_AT = config.FUNNEL_CTA_AT      # после скольких сообщений показывать оффер
+# Сколько раз за разговор вообще показывать оффер и через сколько сообщений
+# повторять. Раньше ограничения не было: пройдя порог, человек получал блок с
+# ценой под КАЖДЫМ ответом. Продающий блок при этом велит модели «второй раз
+# к офферу в этом же диалоге не возвращаться» — код ей противоречил, и громче.
+# Дважды — это напоминание, на третий раз это давление.
+_CTA_MAX_TIMES = 2
+_CTA_GAP = 6
 _STARS_PRICE = config.STARS_PRICE          # цена в звёздах, задаётся через env
 _REINDEX_MAX_SPAN = 200                    # сколько message_id за один /reindex
 _REINDEX_PAUSE = 0.3                       # пауза между пробами, чтобы не словить flood limit
@@ -816,7 +823,15 @@ class TelegramBot:
         if len(conv) > _MAX_HISTORY + 1:
             self._conversations[chat_id] = [conv[0]] + conv[-_MAX_HISTORY:]
 
-        show_cta = _OFFER.is_ready and not is_premium and state.messages >= _FUNNEL_CTA_AT
+        # Порог сдвигается с каждым показом, поэтому второй оффер приходит не
+        # сразу за первым, а через разговор. Отдельное поле для этого не нужно:
+        # cta_shown и так хранится.
+        show_cta = (
+            _OFFER.is_ready
+            and not is_premium
+            and state.cta_shown < _CTA_MAX_TIMES
+            and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
+        )
 
         try:
             if thinking_msg:
