@@ -14,6 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 from bot import telegram_bot
 from config import config
+from utils import site
 from utils.funnel_store import store
 from utils.logger import get_recent_logs, log_agent_action
 
@@ -28,11 +29,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Health Funnel Bot", lifespan=lifespan)
 
 log_agent_action("App", "🚀 Бот запускается")
-
-
-@app.get("/")
-async def root():
-    return {"status": "ok", "service": "health-funnel-bot"}
+site.log_state()
 
 
 @app.get("/health")
@@ -51,6 +48,9 @@ async def debug_info():
         # бесполезно: она задана, а база могла и не ответить.
         "store": getattr(store, "backend_name", "unknown"),
         "followups_scheduled": bool(config.TASKS_SECRET),
+        # Собрана ли статика лендингов. Отдельной строкой, потому что бот
+        # поднимается и без неё, и молча отдавать 404 на весь сайт нельзя.
+        "site_built": site.is_available(),
         "logs": get_recent_logs(),
     }
 
@@ -89,6 +89,23 @@ async def telegram_webhook(request: Request):
     if not accepted:
         raise HTTPException(status_code=403, detail="bad secret")
     return {"ok": True}
+
+
+@app.get("/{url_path:path}")
+async def landing(url_path: str, request: Request):
+    """Лендинги — тем же процессом, что принимает вебхук.
+
+    Маршрут объявлен последним намеренно: FastAPI разбирает их по порядку
+    регистрации, поэтому `/health`, `/debug`, `/tasks/*` и вебхук перехватят
+    свои адреса раньше, а сюда попадёт только то, что действительно сайт.
+
+    Здесь же остаётся корень: раньше он отдавал `{"status": "ok"}`, теперь —
+    главную. Проверять живость нужно по `/health`, он для этого и заведён.
+    """
+    return site.response_for(
+        "/" + url_path.lstrip("/"),
+        request.headers.get("Accept-Encoding", ""),
+    )
 
 
 if __name__ == "__main__":

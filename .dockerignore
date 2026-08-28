@@ -1,0 +1,26 @@
+# Что не должно попасть в образ.
+#
+# Главное здесь — site/node_modules и site/dist: без этих строк docker build
+# тащит в контекст сотни мегабайт с диска разработчика, а сборка внутри
+# образа всё равно делает свою. Плюс локальный dist мог собираться другой
+# версией Node, и тогда в прод уехала бы не та статика, которую собрал Docker.
+
+site/node_modules/
+site/dist/
+site/.astro/
+
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.venv/
+venv/
+
+.git/
+.github/
+logs/
+tests/
+
+# Секреты в образе не нужны: переменные приходят из окружения Render.
+.env
+.env.local
