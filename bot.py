@@ -16,6 +16,7 @@ from utils.content_library import ContentItem, library, parse_caption, tags_for_
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
+from utils.telegram_html import has_markdown, to_telegram_html
 from utils.welcome import load_welcome, welcome_for
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -124,6 +125,25 @@ _SOURCE_DIRECTIONS: dict[str, str] = {
 }
 
 
+def topic_from_callback(data: str) -> tuple[str, str] | None:
+    """Разобрать `t:<раздел>:<номер>` в пару (раздел, тема).
+
+    None — не авария: так выглядит кнопка из приветствия, которое с тех пор
+    переписали. Старое сообщение в чате остаётся, и человек может нажать на
+    неё через месяц.
+    """
+    if not data.startswith(_TOPIC_CALLBACK):
+        return None
+    key, _, index = data[len(_TOPIC_CALLBACK) :].rpartition(":")
+    greeting = _WELCOME.get(key)
+    if not greeting or not index.isdigit():
+        return None
+    position = int(index)
+    if position >= len(greeting.topics):
+        return None
+    return key, greeting.topics[position]
+
+
 def entry_hint(source: str) -> str:
     """Строка о направлении входа — или пусто, если метки нет.
 
@@ -172,6 +192,10 @@ if len(_GIFT_TEXT) > _GIFT_LIMIT:
     _GIFT_TEXT = _GIFT_TEXT[:_GIFT_LIMIT]
 
 _GIFT_BUTTON = "🎁 Забрать чек-лист: 30 шагов"
+# Префикс callback_data кнопок с темами: «t:<раздел>:<номер>». Внутри —
+# номер, а не сама тема: в callback_data Telegram даёт 64 байта, и русская
+# подпись в UTF-8 съедает их вдвое быстрее латиницы.
+_TOPIC_CALLBACK = "t:"
 _GIFT_CALLBACK = "gift"
 # Deep link t.me/<bot>?start=gift — так подарок выдаётся сразу после перехода
 # из рекламы или поста, без лишнего клика.
@@ -468,7 +492,9 @@ class TelegramBot:
         # Клик — тоже активность: после него отсчёт тишины начинается заново.
         await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
 
-        if data == "offer":
+        if data.startswith(_TOPIC_CALLBACK):
+            await self._handle_topic_click(update, query, chat_id, data)
+        elif data == "offer":
             await self._handle_offer_click(query, chat_id)
         elif data == _GIFT_CALLBACK:
             await self._send_gift(query.message, chat_id)
@@ -625,11 +651,7 @@ class TelegramBot:
                     "Telegram", f"Failed to send welcome photo: {e}", level="WARNING"
                 )
 
-        keyboard = None
-        if _GIFT_TEXT:
-            keyboard = InlineKeyboardMarkup([[
-                InlineKeyboardButton(_GIFT_BUTTON, callback_data=_GIFT_CALLBACK)
-            ]])
+        keyboard = self._welcome_keyboard(greeting)
         try:
             await update.message.reply_text(
                 welcome,
@@ -643,6 +665,43 @@ class TelegramBot:
         # Пришёл по ссылке из рекламы или поста — отдаём подарок сразу, без клика
         if source.lower() in _GIFT_START_ARGS:
             await self._send_gift(update.message, chat_id)
+
+    @staticmethod
+    def _welcome_keyboard(greeting) -> InlineKeyboardMarkup | None:
+        """Темы направления кнопками, подарок последней строкой.
+
+        Кнопка вместо списка жирным строк — не украшение: список нужно
+        перепечатать, кнопку достаточно нажать. На первом экране это разница
+        между разговором и тишиной.
+
+        По одной кнопке в ряд: подписи длинные, в два столбца Telegram режет
+        их многоточием, и человек не читает, что выбирает.
+        """
+        rows: list[list[InlineKeyboardButton]] = []
+        if greeting:
+            rows.extend(
+                [InlineKeyboardButton(label, callback_data=f"{_TOPIC_CALLBACK}{greeting.key}:{i}")]
+                for i, label in enumerate(greeting.topics)
+            )
+        if _GIFT_TEXT:
+            rows.append([InlineKeyboardButton(_GIFT_BUTTON, callback_data=_GIFT_CALLBACK)])
+        return InlineKeyboardMarkup(rows) if rows else None
+
+    async def _handle_topic_click(self, update: Update, query, chat_id: str, data: str) -> None:
+        """Клик по теме = вопрос по ней. Дальше обычный путь ответа.
+
+        Кнопки намеренно не убираются после нажатия: человек часто хочет
+        вторую тему, и заставлять его ради этого печатать — терять разговор.
+        """
+        parsed = topic_from_callback(data)
+        if parsed is None:
+            log_agent_action("Telegram", f"Неизвестная кнопка темы: {data}", level="WARNING")
+            return
+
+        key, topic = parsed
+        await store.event(chat_id, "topic_clicked", source=key)
+        log_agent_action("Telegram", f"Тема с кнопки: «{topic}» (чат {chat_id})")
+        await self._answer(update, query.message, topic)
 
     async def _handle_checklist(self, update: Update, context) -> None:
         if not update.message:
@@ -669,9 +728,16 @@ class TelegramBot:
         """Free-form chat with LLM."""
         if not update.message or not update.message.text:
             return
+        await self._answer(update, update.message, update.message.text.strip())
 
+    async def _answer(self, update: Update, message, text: str) -> None:
+        """Ответ модели на вопрос — набранный руками или выбранный кнопкой.
+
+        Кнопка темы в приветствии — это тот же вопрос, просто человек его не
+        печатал. Поэтому путь у них один: два отдельных пути разошлись бы на
+        первой же правке, и расходились бы тихо.
+        """
         chat_id = str(update.effective_chat.id)
-        text = update.message.text.strip()
 
         state = store.user(chat_id)
         state = replace(state, messages=state.messages + 1, last_seen_at=now_iso())
@@ -694,7 +760,7 @@ class TelegramBot:
 
         thinking_msg = None
         try:
-            thinking_msg = await update.message.reply_text("⏳")
+            thinking_msg = await message.reply_text("⏳")
         except TelegramError:
             pass
 
@@ -709,10 +775,20 @@ class TelegramBot:
                 if thinking_msg:
                     await thinking_msg.edit_text(safe)
                 else:
-                    await update.message.reply_text(safe)
+                    await message.reply_text(safe)
             except TelegramError:
                 pass
             return
+
+        # Промпт запрещает markdown, но модель его всё равно иногда ставит, и
+        # человек видит «**бег**» вместо жирного. Правило уже есть и уже не
+        # соблюдается — поэтому чиним на выходе, а не ещё одной строкой в
+        # промпте.
+        if has_markdown(reply):
+            log_agent_action(
+                "Telegram", f"В ответе был markdown, преобразован в HTML (chat {chat_id})"
+            )
+            reply = to_telegram_html(reply)
 
         reply, price_blocked = _OFFER.sanitize_reply(reply)
         if price_blocked:
@@ -746,17 +822,17 @@ class TelegramBot:
         await self._send_topic_video(update, state, text)
 
         try:
-            await update.message.reply_text(reply, parse_mode="HTML")
+            await message.reply_text(reply, parse_mode="HTML")
         except TelegramError:
             try:
-                await update.message.reply_text(reply)
+                await message.reply_text(reply)
             except TelegramError as e:
                 log_agent_action("Telegram", f"Failed to send reply: {e}", level="ERROR")
 
         log_agent_action("Telegram", f"Chat reply sent ({len(reply)} chars)")
 
         if show_cta:
-            await self._send_offer_cta(update, state)
+            await self._send_offer_cta(message, state)
 
     @staticmethod
     def _keyboard(buttons: tuple[CtaButton, ...]) -> InlineKeyboardMarkup | None:
@@ -771,7 +847,7 @@ class TelegramBot:
             [[InlineKeyboardButton(b.label, callback_data=b.action)] for b in buttons]
         )
 
-    async def _send_offer_cta(self, update: Update, state: UserState) -> None:
+    async def _send_offer_cta(self, message, state: UserState) -> None:
         """Оффер отдельным сообщением с кнопками — так виден и показ, и клик.
 
         Кнопок несколько и они разные по смыслу: одна ведёт к условиям, вторая
@@ -780,7 +856,7 @@ class TelegramBot:
         """
         keyboard = self._keyboard(_OFFER.cta_buttons)
         try:
-            await update.message.reply_text(
+            await message.reply_text(
                 _OFFER.cta_text, parse_mode="HTML", reply_markup=keyboard
             )
         except TelegramError as e:

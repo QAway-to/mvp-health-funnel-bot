@@ -11,7 +11,13 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import bot as bot_module  # noqa: E402
-from utils.welcome import DEFAULT_KEY, Welcome, load_welcome, welcome_for  # noqa: E402
+from utils.welcome import (  # noqa: E402
+    DEFAULT_KEY,
+    TOPIC_LABEL_LIMIT,
+    Welcome,
+    load_welcome,
+    welcome_for,
+)
 
 # Метки, которые шлёт сайт (src/lib/leadLink.ts). У каждой должен быть свой
 # текст: `default` для них — это молчаливая потеря, а не запасной вариант.
@@ -90,3 +96,59 @@ def test_empty_sections_give_nothing_to_send():
     """Пустой файл — не повод падать: бот отправит запасной текст."""
     assert welcome_for({}, "son") is None
     assert bot_module._WELCOME_FALLBACK.strip()
+
+
+def test_every_greeting_offers_topic_buttons():
+    """Список тем строками просили перепечатать. Кнопку достаточно нажать."""
+    for key, greeting in WELCOME.items():
+        assert greeting.topics, f"в {key} нет кнопок с темами"
+        assert 3 <= len(greeting.topics) <= 6, f"в {key} кнопок {len(greeting.topics)}"
+
+
+def test_topic_labels_fit_a_button():
+    for key, greeting in WELCOME.items():
+        for label in greeting.topics:
+            assert len(label) <= TOPIC_LABEL_LIMIT, f"в {key} подпись длиннее кнопки: {label}"
+
+
+def test_topic_callbacks_fit_telegram_limit():
+    """У callback_data 64 байта, и кириллица в UTF-8 съедает их вдвое быстрее."""
+    for key, greeting in WELCOME.items():
+        for index in range(len(greeting.topics)):
+            data = f"{bot_module._TOPIC_CALLBACK}{key}:{index}"
+            assert len(data.encode("utf-8")) <= 64, f"callback_data не влезает: {data}"
+
+
+def test_keyboard_puts_the_gift_last():
+    greeting = welcome_for(WELCOME, "son")
+    keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
+    rows = keyboard.inline_keyboard
+    assert len(rows) == len(greeting.topics) + 1, "кнопок не столько, сколько тем"
+    assert all(len(row) == 1 for row in rows), "по одной кнопке в ряд, иначе Telegram режет подписи"
+    assert rows[-1][0].callback_data == bot_module._GIFT_CALLBACK
+
+
+def test_keyboard_survives_a_missing_greeting():
+    keyboard = bot_module.TelegramBot._welcome_keyboard(None)
+    assert keyboard is None or len(keyboard.inline_keyboard) == 1
+
+
+def test_topics_are_not_left_in_the_text():
+    """Строка «@topic ...» — разметка кнопки, а не текст сообщения."""
+    for key, greeting in WELCOME.items():
+        assert "@topic" not in greeting.text, f"в {key} разметка кнопки попала в текст"
+
+
+def test_callback_round_trips_to_the_topic():
+    """Кнопка и её разбор — это одна пара. Разъедутся — клик ничего не сделает."""
+    greeting = welcome_for(WELCOME, "zakalivanie")
+    keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
+    for row, expected in zip(keyboard.inline_keyboard, greeting.topics):
+        parsed = bot_module.topic_from_callback(row[0].callback_data)
+        assert parsed == ("zakalivanie", expected)
+
+
+def test_stale_or_broken_callback_is_ignored():
+    """Кнопка из приветствия, которое переписали, не должна ронять обработчик."""
+    for data in ("gift", "t:", "t:нет-такого:0", "t:son:99", "t:son:x", "мусор"):
+        assert bot_module.topic_from_callback(data) is None

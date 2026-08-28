@@ -24,6 +24,10 @@ DEFAULT_KEY = "default"
 
 _SECTION_PREFIX = "=="
 _PHOTO_PREFIX = "photo:"
+_TOPIC_PREFIX = "@topic "
+
+#: Подпись кнопки Telegram обрезает многоточием примерно на этой длине.
+TOPIC_LABEL_LIMIT = 40
 
 
 @dataclass(frozen=True)
@@ -34,10 +38,12 @@ class Welcome:
     text: str
     #: file_id картинки в Telegram. Пусто — покажем картинку из `default`.
     photo: str = ""
+    #: Темы направления кнопками. Клик = тот же вопрос, только не напечатанный.
+    topics: tuple[str, ...] = ()
 
 
 def _parse(raw: str) -> dict[str, Welcome]:
-    sections: dict[str, tuple[list[str], str]] = {}
+    sections: dict[str, tuple[list[str], str, list[str]]] = {}
     key: str | None = None
 
     for line in raw.splitlines():
@@ -47,21 +53,28 @@ def _parse(raw: str) -> dict[str, Welcome]:
         if stripped.startswith(_SECTION_PREFIX):
             key = stripped[len(_SECTION_PREFIX) :].strip().lower()
             if key:
-                sections.setdefault(key, ([], ""))
+                sections.setdefault(key, ([], "", []))
             continue
         if key is None:
             continue
-        lines, photo = sections[key]
+        lines, photo, topics = sections[key]
         if stripped.lower().startswith(_PHOTO_PREFIX):
-            sections[key] = (lines, stripped[len(_PHOTO_PREFIX) :].strip())
+            sections[key] = (lines, stripped[len(_PHOTO_PREFIX) :].strip(), topics)
+            continue
+        if stripped.startswith(_TOPIC_PREFIX):
+            label = stripped[len(_TOPIC_PREFIX) :].strip()
+            if label:
+                topics.append(label)
             continue
         lines.append(line.rstrip())
 
     result: dict[str, Welcome] = {}
-    for key, (lines, photo) in sections.items():
+    for key, (lines, photo, topics) in sections.items():
         text = "\n".join(lines).strip()
         if text:
-            result[key] = Welcome(key=key, text=text, photo=photo)
+            result[key] = Welcome(
+                key=key, text=text, photo=photo, topics=tuple(topics)
+            )
     return result
 
 
@@ -104,4 +117,6 @@ def welcome_for(sections: dict[str, Welcome], source: str) -> Welcome | None:
         return fallback
     if chosen.photo or fallback is None:
         return chosen
-    return Welcome(key=chosen.key, text=chosen.text, photo=fallback.photo)
+    return Welcome(
+        key=chosen.key, text=chosen.text, photo=fallback.photo, topics=chosen.topics
+    )
