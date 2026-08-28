@@ -115,3 +115,22 @@ def test_every_lead_segment_of_the_site_is_understood():
         "massazh", "zakalivanie", "vrednye-privychki",
     }
     assert from_site <= set(bot_module._SOURCE_DIRECTIONS), "сайт шлёт метку, которой бот не знает"
+
+
+def test_no_stray_foreign_characters():
+    """Иероглиф или латиница посреди русской фразы — след опечатки при правке.
+
+    Ловится только глазами и только случайно: модель такой текст проглотит и
+    перескажет человеку как есть. Проверяем весь каталог промптов, а не одну
+    базу знаний.
+    """
+    suspicious = []
+    for path in sorted((KB_DIR.parent).rglob("*.txt")):
+        for number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
+            for char in line:
+                # CJK, хирагана, катакана, хангыль — ничего этого в русском
+                # тексте Федерации быть не может
+                if "぀" <= char <= "鿿" or "가" <= char <= "힯":
+                    suspicious.append(f"{path.name}:{number}: {char!r} в «{line.strip()[:50]}»")
+                    break
+    assert not suspicious, "посторонние символы в промптах:\n" + "\n".join(suspicious)
