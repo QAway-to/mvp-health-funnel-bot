@@ -39,6 +39,10 @@ class Config:
     # открытая точка запуска позволила бы кому угодно слать письма нашей базе.
     TASKS_SECRET: Optional[str] = os.getenv("TASKS_SECRET")
     PURCHASE_URL: Optional[str] = os.getenv("PURCHASE_URL")
+    # Общий секрет с LavaTop: им подписан вебхук об оплате картой. Пока пусто —
+    # маршрут выключен целиком. Открытая точка выдачи доступа означала бы, что
+    # премиум может выписать себе кто угодно, зная адрес.
+    LAVATOP_SECRET: Optional[str] = os.getenv("LAVATOP_SECRET")
     PAYMENTS_ENABLED: bool = _flag("PAYMENTS_ENABLED")
     # Цена ступени в звёздах Telegram. Ноль означает «в звёздах не продаём» —
     # такая ступень уходит на внешнюю страницу оплаты.

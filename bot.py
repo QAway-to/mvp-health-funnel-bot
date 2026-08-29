@@ -630,6 +630,15 @@ class TelegramBot:
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send payment confirm: {e}", level="ERROR")
 
+    async def grant_premium(self, chat_id: str, reason: str, **details: Any) -> None:
+        """Публичная обёртка: доступ выдаёт не только чат, но и оплата картой.
+
+        Уведомление LavaTop приходит по HTTP, минуя Telegram, и ему нужен тот
+        же путь выдачи. Разные пути к одному доступу разошлись бы на первой же
+        правке — а расходиться тут нельзя: на кону оплаченный доступ.
+        """
+        await self._grant_premium(chat_id, reason, **details)
+
     async def _grant_premium(self, chat_id: str, reason: str, **details: Any) -> None:
         """Persist the unlock immediately — a lost payment is not recoverable.
 

@@ -143,6 +143,85 @@ async def run_reindex(request: Request):
     return {"ok": True, "indexed": count, "library": library_size()}
 
 
+@app.post("/payments/lavatop")
+async def lavatop_payment(request: Request):
+    """Оплата картой на стороне LavaTop — выдать доступ в боте.
+
+    Вторая дверь к тому же продукту: Telegram Stars работают только внутри
+    Telegram, LavaTop принимает карту. Доступ обе выдают один и тот же, и
+    выдаётся он тем же кодом, что после Stars.
+
+    ФОРМАТ УВЕДОМЛЕНИЯ НЕ СВЕРЕН С ДОКУМЕНТАЦИЕЙ LAVATOP. Поэтому здесь два
+    решения вместо одного:
+
+    1. Тело запроса целиком пишется в лог. По первому же реальному платежу
+       поля сверяются за пять минут — гадать по документации, которую я не
+       читал, дороже.
+    2. Идентификатор покупателя ищется в нескольких местах сразу. Какое из них
+       окажется настоящим, покажет тот же первый платёж.
+
+    Пока `LAVATOP_SECRET` не задан, маршрут выключен: открытая точка выдачи
+    доступа означала бы, что премиум выпишет себе любой, кто знает адрес.
+    """
+    if not config.LAVATOP_SECRET:
+        raise HTTPException(status_code=503, detail="LAVATOP_SECRET not set")
+
+    provided = (
+        request.headers.get("X-Api-Key")
+        or request.headers.get("X-Signature")
+        or request.query_params.get("key", "")
+    )
+    if not secrets.compare_digest(provided, config.LAVATOP_SECRET):
+        log_agent_action("Payments", "Уведомление LavaTop с неверным ключом", level="WARNING")
+        raise HTTPException(status_code=403, detail="bad secret")
+
+    try:
+        payload = await request.json()
+    except ValueError:
+        raise HTTPException(status_code=400, detail="body must be json")
+
+    # Целиком и до разбора: это единственный способ узнать настоящий формат.
+    log_agent_action("Payments", f"LavaTop прислал: {payload}")
+
+    chat_id = _buyer_chat_id(payload)
+    if not chat_id:
+        log_agent_action(
+            "Payments",
+            "В уведомлении нет chat_id покупателя — доступ выдать некому. "
+            "Ссылка оплаты должна нести идентификатор, см. lavatop-products.md",
+            level="ERROR",
+        )
+        # 200, а не ошибка: LavaTop иначе будет ретраить бесконечно, а платёж
+        # состоялся. Разбираемся по логу и выдаём доступ руками.
+        return {"ok": True, "granted": False, "reason": "no buyer id"}
+
+    await telegram_bot.grant_premium(chat_id, "lavatop", payload=str(payload)[:500])
+    return {"ok": True, "granted": True}
+
+
+def _buyer_chat_id(payload: dict) -> str:
+    """Найти идентификатор покупателя в теле уведомления.
+
+    Мест несколько, потому что формат не сверен. Порядок — от самого явного к
+    наименее: сначала то, что мы сами положили в ссылку оплаты.
+    """
+    if not isinstance(payload, dict):
+        return ""
+    candidates = [
+        payload.get("client_id"),
+        payload.get("clientId"),
+        payload.get("custom"),
+        payload.get("buyer_id"),
+        (payload.get("buyer") or {}).get("id") if isinstance(payload.get("buyer"), dict) else None,
+        (payload.get("data") or {}).get("client_id") if isinstance(payload.get("data"), dict) else None,
+    ]
+    for value in candidates:
+        text = str(value or "").strip()
+        if text.isdigit():
+            return text
+    return ""
+
+
 @app.get("/{url_path:path}")
 async def landing(url_path: str, request: Request):
     """Лендинги — тем же процессом, что принимает вебхук.
