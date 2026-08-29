@@ -123,10 +123,15 @@ async def test_start_buttons_belong_to_that_direction(quiet_store):
     await bot_module.TelegramBot()._handle_start(update, FakeContext(["son"]))
 
     markup = update.message.replies[0]["reply_markup"]
-    topics = [row[0] for row in markup.inline_keyboard[:-1]]
+    topics = [
+        row[0] for row in markup.inline_keyboard
+        if row[0].callback_data.startswith(bot_module._TOPIC_CALLBACK)
+    ]
     assert topics, "кнопок с темами нет"
     for button in topics:
         assert button.callback_data.startswith("t:son:")
+    # Сверху курс, снизу подарок, темы между ними.
+    assert markup.inline_keyboard[0][0].callback_data.startswith(bot_module._STEP_CALLBACK)
     assert markup.inline_keyboard[-1][0].callback_data == bot_module._GIFT_CALLBACK
 
 

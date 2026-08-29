@@ -35,8 +35,15 @@ CREATE TABLE IF NOT EXISTS funnel_users (
     seen_content   TEXT    NOT NULL DEFAULT '',
     created_at     TEXT    NOT NULL DEFAULT '',
     last_seen_at   TEXT    NOT NULL DEFAULT '',
-    followups_sent INTEGER NOT NULL DEFAULT 0
+    followups_sent INTEGER NOT NULL DEFAULT 0,
+    course         TEXT    NOT NULL DEFAULT '',
+    step           INTEGER NOT NULL DEFAULT 0
 );
+
+-- Колонки курса добавлены позже схемы, а база у заказчика уже с данными:
+-- CREATE TABLE IF NOT EXISTS на существующей таблице их не создаст.
+ALTER TABLE funnel_users ADD COLUMN IF NOT EXISTS course TEXT    NOT NULL DEFAULT '';
+ALTER TABLE funnel_users ADD COLUMN IF NOT EXISTS step   INTEGER NOT NULL DEFAULT 0;
 
 CREATE TABLE IF NOT EXISTS funnel_events (
     id      BIGSERIAL PRIMARY KEY,
@@ -53,8 +60,9 @@ CREATE INDEX IF NOT EXISTS funnel_events_event_ts_idx ON funnel_events (event, t
 _UPSERT = """
 INSERT INTO funnel_users (
     chat_id, bucket, is_premium, messages, cta_shown,
-    source, seen_content, created_at, last_seen_at, followups_sent
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    source, seen_content, created_at, last_seen_at, followups_sent,
+    course, step
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
 ON CONFLICT (chat_id) DO UPDATE SET
     bucket         = EXCLUDED.bucket,
     is_premium     = EXCLUDED.is_premium,
@@ -64,7 +72,9 @@ ON CONFLICT (chat_id) DO UPDATE SET
     seen_content   = EXCLUDED.seen_content,
     created_at     = EXCLUDED.created_at,
     last_seen_at   = EXCLUDED.last_seen_at,
-    followups_sent = EXCLUDED.followups_sent
+    followups_sent = EXCLUDED.followups_sent,
+    course         = EXCLUDED.course,
+    step           = EXCLUDED.step
 """
 
 _INSERT_EVENT = """
@@ -220,6 +230,8 @@ class PostgresStore(CachedStore):
             state.created_at,
             state.last_seen_at,
             state.followups_sent,
+            state.course,
+            state.step,
         )
 
     async def _write(self, users: list[UserState], events: list[dict[str, Any]]) -> bool:

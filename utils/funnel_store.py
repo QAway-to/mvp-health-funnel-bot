@@ -57,6 +57,12 @@ class UserState:
     # last_seen_at, очередь шагов — от followups_sent.
     last_seen_at: str = ""
     followups_sent: int = 0
+    # Где человек в пошаговом курсе: слаг направления и номер последнего
+    # выданного шага. Пусто — курс не начат. Держим прямо здесь, а не в
+    # отдельной таблице: одна запись на человека, и читается она в том же
+    # запросе, что и всё остальное.
+    course: str = ""
+    step: int = 0
 
     def to_row(self) -> dict[str, Any]:
         return {
@@ -70,6 +76,8 @@ class UserState:
             "created_at": self.created_at,
             "last_seen_at": self.last_seen_at,
             "followups_sent": self.followups_sent,
+            "course": self.course,
+            "step": self.step,
         }
 
     @staticmethod
@@ -92,6 +100,8 @@ class UserState:
             created_at=str(row.get("created_at") or ""),
             last_seen_at=str(row.get("last_seen_at") or ""),
             followups_sent=_as_int(row.get("followups_sent")),
+            course=str(row.get("course") or ""),
+            step=_as_int(row.get("step")),
         )
 
 

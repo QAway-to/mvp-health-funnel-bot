@@ -67,6 +67,8 @@ def test_user_params_match_the_insert_order():
         created_at="2026-08-21T10:00:00+00:00",
         last_seen_at="2026-08-21T12:00:00+00:00",
         followups_sent=1,
+        course="zakalivanie",
+        step=3,
     )
 
     assert PostgresStore._user_params(state) == (
@@ -80,6 +82,8 @@ def test_user_params_match_the_insert_order():
         "2026-08-21T10:00:00+00:00",
         "2026-08-21T12:00:00+00:00",
         1,
+        "zakalivanie",    # где человек в пошаговом курсе
+        3,
     )
 
 

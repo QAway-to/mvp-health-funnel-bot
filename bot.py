@@ -18,6 +18,7 @@ from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils import stars
 from utils.telegram_html import has_markdown, to_telegram_html
+from utils.steps import course_for, load_courses
 from utils.testimonials import load_testimonials, pick as pick_testimonial
 from utils.welcome import load_welcome, welcome_for
 
@@ -226,6 +227,11 @@ _TOPICS_AFTER_ANSWER = 3
 # Отзывы участников. Показываются рядом с оффером — там, где человеку нужно
 # чужое подтверждение, а не наше обещание.
 _TESTIMONIALS = load_testimonials()
+
+# Пошаговые курсы: шаг = ролик + текст. Это продукт, а не функция бота —
+# разговор «спроси — отвечу» даёт пользу, но не даёт причины вернуться завтра.
+_COURSES = load_courses()
+_STEP_CALLBACK = "s:"          # s:<слаг>:<номер шага>
 _GIFT_CALLBACK = "gift"
 # Deep link t.me/<bot>?start=gift — так подарок выдаётся сразу после перехода
 # из рекламы или поста, без лишнего клика.
@@ -363,6 +369,7 @@ class TelegramBot:
             )
             self._app.add_handler(CommandHandler("start", self._handle_start))
             self._app.add_handler(CommandHandler("checklist", self._handle_checklist))
+            self._app.add_handler(CommandHandler("kurs", self._handle_course))
             self._app.add_handler(CommandHandler("status", self._handle_status))
             self._app.add_handler(CommandHandler("reindex", self._handle_reindex))
             self._app.add_handler(CommandHandler("migrate_legacy", self._handle_migrate_legacy))
@@ -534,7 +541,9 @@ class TelegramBot:
         # Клик — тоже активность: после него отсчёт тишины начинается заново.
         await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
 
-        if data.startswith(_TOPIC_CALLBACK):
+        if data.startswith(_STEP_CALLBACK):
+            await self._handle_step_click(update, query, chat_id, data)
+        elif data.startswith(_TOPIC_CALLBACK):
             await self._handle_topic_click(update, query, chat_id, data)
         elif data == "offer":
             await self._handle_offer_click(query, chat_id)
@@ -720,6 +729,18 @@ class TelegramBot:
         их многоточием, и человек не читает, что выбирает.
         """
         rows: list[list[InlineKeyboardButton]] = []
+
+        # Курс — первой кнопкой: это продукт, а темы ниже — способ его
+        # попробовать. Если поставить курс в конец, до него доходят единицы.
+        course = course_for(_COURSES, greeting.key) if greeting else None
+        if course:
+            rows.append([
+                InlineKeyboardButton(
+                    f"▶️ Пройти курс по шагам ({course.length})",
+                    callback_data=f"{_STEP_CALLBACK}{course.slug}:1",
+                )
+            ])
+
         if greeting:
             rows.extend(
                 [InlineKeyboardButton(label, callback_data=f"{_TOPIC_CALLBACK}{greeting.key}:{i}")]
@@ -728,6 +749,126 @@ class TelegramBot:
         if _GIFT_TEXT:
             rows.append([InlineKeyboardButton(_GIFT_BUTTON, callback_data=_GIFT_CALLBACK)])
         return InlineKeyboardMarkup(rows) if rows else None
+
+    # --- пошаговый курс: шаг = ролик + текст --------------------------------
+
+    async def _handle_course(self, update: Update, context) -> None:
+        """/kurs — начать курс или продолжить с того места, где остановился."""
+        if not update.message:
+            return
+        chat_id = str(update.effective_chat.id)
+        state = store.user(chat_id)
+        course = course_for(_COURSES, state.course or state.source)
+
+        if course is None:
+            await update.message.reply_text(
+                with_hint(
+                    "Пошаговый курс есть по бегу, сну и закаливанию. "
+                    "Напиши, что из этого ближе, и начнём."
+                ),
+                parse_mode="HTML",
+                reply_markup=self._topics_keyboard(state.source),
+            )
+            return
+
+        # Курс тот же — идём дальше; сменился — начинаем сначала.
+        next_number = state.step + 1 if state.course == course.slug else 1
+        await self._send_step(update.message, state, course, next_number)
+
+    async def _handle_step_click(self, update: Update, query, chat_id: str, data: str) -> None:
+        """Кнопка «Дальше» под шагом."""
+        slug, _, number = data[len(_STEP_CALLBACK) :].rpartition(":")
+        course = _COURSES.get(slug)
+        if course is None or not number.isdigit():
+            log_agent_action("Steps", f"Неизвестная кнопка шага: {data}", level="WARNING")
+            return
+        await self._send_step(query.message, store.user(chat_id), course, int(number))
+
+    async def _send_step(self, message, state: UserState, course, number: int) -> None:
+        """Отдать шаг: сначала ролик, потом текст.
+
+        Порядок не случаен. Ролик показывает движение, текст показывает меру —
+        дозировку, порядок и чего не делать. Если сначала текст, ролик уже не
+        смотрят.
+
+        Ролика может не быть: часть направлений снята не полностью. Тогда шаг
+        уходит текстом, и это лучше, чем не отдать написанное.
+        """
+        step = course.step(number)
+        if step is None:
+            await self._finish_course(message, state, course)
+            return
+
+        if step.video_tags:
+            await self._send_step_video(message, state, step)
+
+        rows = []
+        if course.step(number + 1):
+            rows.append([
+                InlineKeyboardButton(
+                    "Дальше →", callback_data=f"{_STEP_CALLBACK}{course.slug}:{number + 1}"
+                )
+            ])
+        header = f"<i>{course.title} · шаг {number} из {course.length}</i>" + "\n\n"
+
+        try:
+            await message.reply_text(
+                with_hint(header + step.text),
+                parse_mode="HTML",
+                disable_web_page_preview=True,
+                reply_markup=InlineKeyboardMarkup(rows) if rows else None,
+            )
+        except TelegramError as e:
+            log_agent_action("Steps", f"Шаг {number} не ушёл: {e}", level="ERROR")
+            return
+
+        await store.save(replace(state, course=course.slug, step=number))
+        await store.event(state.chat_id, "step_sent", course=course.slug, step=number)
+
+    async def _send_step_video(self, message, state: UserState, step) -> None:
+        """Ролик к шагу, если он есть в канале.
+
+        Ищем по тегам шага, а не по тексту: текст шага длинный, и подбор по
+        нему притащил бы ролик по случайному совпадению слова.
+        """
+        if not config.CONTENT_CHANNEL_ID or not self._app:
+            return
+        self._ensure_library()
+        item = library.match(
+            " ".join(step.video_tags), is_premium=state.is_premium, exclude=()
+        )
+        if not item:
+            log_agent_action(
+                "Steps",
+                f"К шагу {step.number} нет ролика (теги: {', '.join(step.video_tags)})",
+            )
+            return
+        try:
+            await self._app.bot.copy_message(
+                chat_id=state.chat_id,
+                from_chat_id=config.CONTENT_CHANNEL_ID,
+                message_id=item.message_id,
+            )
+        except TelegramError as e:
+            log_agent_action("Steps", f"Ролик к шагу {step.number} не ушёл: {e}", level="WARNING")
+
+    async def _finish_course(self, message, state: UserState, course) -> None:
+        """Курс пройден: сказать об этом и предложить следующий."""
+        await store.event(state.chat_id, "course_finished", course=course.slug)
+        others = [c for slug, c in _COURSES.items() if slug != course.slug]
+        rows = [
+            [InlineKeyboardButton(f"Начать: {c.title}", callback_data=f"{_STEP_CALLBACK}{c.slug}:1")]
+            for c in others[:3]
+        ]
+        await message.reply_text(
+            with_hint(
+                f"<b>Курс «{course.title}» пройден.</b>\n\n"
+                "Дальше всё решает регулярность, а не новые знания. "
+                "Возвращайся к шагам, когда собьёшься — они никуда не денутся."
+            ),
+            parse_mode="HTML",
+            reply_markup=InlineKeyboardMarkup(rows) if rows else None,
+        )
 
     @staticmethod
     def _topics_keyboard(source: str, *, exclude: str = "") -> InlineKeyboardMarkup | None:

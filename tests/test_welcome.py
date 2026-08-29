@@ -122,11 +122,19 @@ def test_topic_callbacks_fit_telegram_limit():
             assert len(data.encode("utf-8")) <= 64, f"callback_data не влезает: {data}"
 
 
+def _topic_rows(keyboard):
+    """Только кнопки тем: сверху может стоять курс, снизу — подарок."""
+    return [
+        row for row in keyboard.inline_keyboard
+        if row[0].callback_data.startswith(bot_module._TOPIC_CALLBACK)
+    ]
+
+
 def test_keyboard_puts_the_gift_last():
     greeting = welcome_for(WELCOME, "son")
     keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
     rows = keyboard.inline_keyboard
-    assert len(rows) == len(greeting.topics) + 1, "кнопок не столько, сколько тем"
+    assert len(_topic_rows(keyboard)) == len(greeting.topics), "кнопок не столько, сколько тем"
     assert all(len(row) == 1 for row in rows), "по одной кнопке в ряд, иначе Telegram режет подписи"
     assert rows[-1][0].callback_data == bot_module._GIFT_CALLBACK
 
@@ -146,7 +154,7 @@ def test_callback_round_trips_to_the_topic():
     """Кнопка и её разбор — это одна пара. Разъедутся — клик ничего не сделает."""
     greeting = welcome_for(WELCOME, "zakalivanie")
     keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
-    for row, expected in zip(keyboard.inline_keyboard, greeting.topics):
+    for row, expected in zip(_topic_rows(keyboard), greeting.topics):
         parsed = bot_module.topic_from_callback(row[0].callback_data)
         assert parsed == ("zakalivanie", expected)
 
@@ -170,5 +178,5 @@ def test_alias_callbacks_carry_the_current_slug():
     """Кнопки под старой ссылкой должны быть с действующим слагом, а не с её."""
     greeting = welcome_for(WELCOME, "samomassazh")
     keyboard = bot_module.TelegramBot._welcome_keyboard(greeting)
-    for row in keyboard.inline_keyboard[:-1]:
+    for row in _topic_rows(keyboard):
         assert row[0].callback_data.startswith(f"{bot_module._TOPIC_CALLBACK}massazh:")
