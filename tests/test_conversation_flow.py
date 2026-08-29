@@ -390,3 +390,50 @@ async def test_a_stale_button_says_so_instead_of_going_quiet(quiet_store, asking
     await bot._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
 
     assert query.message.replies, "кнопка от старого сообщения промолчала"
+
+
+# --- воронка оплаты: сначала выбор, потом почта -----------------------------
+#
+# Человек, пришедший с лендинга по кнопке уровня, первым же сообщением получал
+# «пришли почту». В момент самого сильного намерения — анкета. Почта нужна
+# только карте, и спрашивать её до выбора способа значило спрашивать у всех.
+
+
+@pytest.mark.asyncio
+async def test_a_tier_link_does_not_ask_for_an_email_first(quiet_store, paying_update, monkeypatch):
+    monkeypatch.setattr(bot_module.config, "LAVA_API_KEY", "fake")
+
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_premium__son"])
+    )
+
+    texts = " ".join(reply["text"].lower() for reply in paying_update.message.replies)
+    assert "почт" not in texts, "почту просят до того, как выбран способ оплаты"
+
+
+@pytest.mark.asyncio
+async def test_a_tier_link_shows_the_ways_to_pay(quiet_store, paying_update, monkeypatch):
+    monkeypatch.setattr(bot_module.config, "LAVA_API_KEY", "fake")
+
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_premium__son"])
+    )
+
+    markup = paying_update.message.replies[-1]["reply_markup"]
+    labels = [row[0].text for row in markup.inline_keyboard]
+    assert any("вёзд" in label for label in labels)
+    assert any("артой" in label for label in labels)
+    assert any("подробнее" in label.lower() for label in labels), "нет выхода из покупки"
+
+
+@pytest.mark.asyncio
+async def test_the_greeting_menu_stays_quiet_while_buying(quiet_store, paying_update, monkeypatch):
+    """Меню приветствия зовёт читать темы — то есть уводит от оплаты."""
+    monkeypatch.setattr(bot_module.config, "LAVA_API_KEY", "fake")
+
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_premium__son"])
+    )
+
+    greeting = paying_update.message.replies[0]
+    assert greeting.get("reply_markup") is None

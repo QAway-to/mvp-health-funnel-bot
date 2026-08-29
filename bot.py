@@ -212,6 +212,19 @@ _CHOICE_CALLBACK = "c:"
 _CHOICE_OTHER = "c:other"
 _CHOICE_OTHER_LABEL = "Интересует другая тема"
 
+#: Способ оплаты: `pay:<ступень>:<способ>`.
+_PAY_CALLBACK = "pay:"
+_PAY_STARS = "stars"
+_PAY_CARD = "card"
+#: Отдельный способ, а не разновидность карты: он ведёт на страницу кассы
+#: мимо почты в чате, и выбирают его именно поэтому.
+_PAY_PAGE = "page"
+_PAY_LABELS = {
+    _PAY_STARS: "⭐ Звёздами в Telegram",
+    _PAY_CARD: "💳 Картой",
+    _PAY_PAGE: "Оплатить на странице",
+}
+
 # Подпись под каждым сообщением бота. Кнопки удобны, но создают ощущение
 # анкеты: человек кликает и не догадывается, что можно просто спросить своими
 # словами — а именно свой вопрос и переводит разговор из меню в диалог.
@@ -577,7 +590,9 @@ class TelegramBot:
         # Клик — тоже активность: после него отсчёт тишины начинается заново.
         await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
 
-        if data == _CHOICE_OTHER:
+        if data.startswith(_PAY_CALLBACK):
+            await self._handle_pay_click(query, chat_id, data)
+        elif data == _CHOICE_OTHER:
             await self._handle_choice_other(update, query, chat_id)
         elif data.startswith(_CHOICE_CALLBACK):
             await self._handle_choice_click(update, query, chat_id, data)
@@ -750,7 +765,10 @@ class TelegramBot:
         if photo:
             await self._send_welcome_photo(update.message, photo)
 
-        keyboard = self._welcome_keyboard(greeting)
+        # Пришёл платить — меню приветствия молчит. Оно зовёт читать темы и
+        # проходить курс, то есть уводит ровно в тот момент, когда человек уже
+        # выбрал уровень на сайте. Кнопки ниже будут только про оплату.
+        keyboard = None if plan_action else self._welcome_keyboard(greeting)
         try:
             await update.message.reply_text(
                 with_hint(welcome),
@@ -1445,25 +1463,91 @@ class TelegramBot:
         await self._start_payment(query.message, chat_id, plan)
 
     async def _start_payment(self, message, chat_id: str, plan: Plan) -> None:
-        """Ступень выбрана — отсюда и только отсюда начинается оплата.
+        """Ступень выбрана — предложить способ оплаты, а не форму.
 
-        Принимает сообщение, а не callback: тем же путём идёт человек,
-        пришедший по ссылке «Звёздами в Telegram» с лендинга. Уровень он там
-        уже выбрал, и предлагать ему тот же выбор второй раз — верный способ
-        потерять его между сайтом и чатом.
+        РАНЬШЕ ЗДЕСЬ БЫЛА ОШИБКА, И ДОРОГАЯ. Человек, пришедший с лендинга по
+        кнопке уровня, первым же сообщением получал «пришли почту». В момент
+        самого сильного намерения — анкета: не продажа, а препятствие. Почта
+        нужна только карте (касса шлёт на неё чек), звёздам она не нужна
+        вовсе, и спрашивать её до выбора способа значило спрашивать у всех.
+
+        Теперь первым идёт выбор, и он в один тап. Почта — потом и только у
+        того, кто выбрал карту: там она уже часть оплаты, а не анкета.
         """
         state = store.user(chat_id)
         await store.event(chat_id, "plan_clicked", plan=plan.action, bucket=state.bucket)
 
+        ways = self._payment_ways(plan)
+        if not ways:
+            await message.reply_text(
+                with_hint("Эту ступень пока нельзя оплатить в чате. Напиши мне — договоримся."),
+                parse_mode="HTML",
+            )
+            return
+
+        # Способ один — выбирать не из чего, ведём сразу. Экран с единственной
+        # кнопкой это не выбор, а задержка.
+        if len(ways) == 1:
+            await self._pay_by(message, chat_id, plan, ways[0])
+            return
+
+        rows = [
+            [
+                InlineKeyboardButton(
+                    _PAY_LABELS[way], callback_data=f"{_PAY_CALLBACK}{plan.action}:{way}"
+                )
+            ]
+            for way in ways
+        ]
+        rows.append([InlineKeyboardButton("Сначала расскажи подробнее", callback_data="offer")])
+        try:
+            await message.reply_text(
+                with_hint(
+                    f"<b>{plan.title}</b>" + "\n\n"
+                    "Доступ открывается сразу после оплаты — все шесть направлений. "
+                    "Как удобнее заплатить?"
+                ),
+                parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(rows),
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to offer payment ways: {e}", level="ERROR")
+
+    @staticmethod
+    def _payment_ways(plan: Plan) -> tuple[str, ...]:
+        """Чем реально можно заплатить за эту ступень прямо сейчас."""
+        ways: list[str] = []
         if config.PAYMENTS_ENABLED and plan.stars:
+            ways.append(_PAY_STARS)
+        if (config.LAVA_API_KEY and _LAVA_OFFERS.get(plan.action)) or _OFFER.purchase_url:
+            ways.append(_PAY_CARD)
+        return tuple(ways)
+
+    async def _handle_pay_click(self, query, chat_id: str, data: str) -> None:
+        """Выбран способ оплаты."""
+        action, _, way = data[len(_PAY_CALLBACK) :].rpartition(":")
+        plan = next((p for p in _PLANS if p.action == action), None)
+        if plan is None or way not in _PAY_LABELS:
+            log_agent_action("Telegram", f"Неизвестная кнопка оплаты: {data}", level="WARNING")
+            return
+        await store.event(chat_id, "pay_way_chosen", plan=plan.action, way=way)
+        await self._pay_by(query.message, chat_id, plan, way)
+
+    async def _pay_by(self, message, chat_id: str, plan: Plan, way: str) -> None:
+        """Довести до оплаты выбранным способом."""
+        state = store.user(chat_id)
+
+        if way == _PAY_STARS:
             if await self._send_invoice(message, plan):
                 await store.event(chat_id, "invoice_sent", plan=plan.action, bucket=state.bucket)
             return
 
-        # Оплата картой. Счёт выставляем сами, а не отправляем на витрину:
-        # витрина не знает, кто пришёл, и платёж потом не с кем связать.
-        # Для счёта нужна почта — на неё касса шлёт чек, и по ней же мы
-        # узнаём покупателя, если метка не вернётся.
+        if way == _PAY_PAGE:
+            await self._send_storefront_link(message, chat_id, plan)
+            return
+
+        # Карта. Счёт выставляем сами, а не отправляем на витрину: витрина не
+        # знает, кто пришёл, и платёж потом не с кем связать.
         offer_id = _LAVA_OFFERS.get(plan.action, "")
         if config.LAVA_API_KEY and offer_id:
             if not state.email:
@@ -1474,9 +1558,14 @@ class TelegramBot:
             # Касса не ответила — уводим на витрину, чтобы человек всё же мог
             # заплатить. Доступ тогда выдаётся по почте, см. _handle_email.
 
+        await self._send_storefront_link(message, chat_id, plan)
+
+    async def _send_storefront_link(self, message, chat_id: str, plan: Plan) -> None:
+        """Страница кассы — когда счёт выставить нечем или человек выбрал её сам."""
         if not _OFFER.purchase_url:
             await message.reply_text(
-                "Эту ступень пока нельзя оплатить в чате. Напиши мне — договоримся."
+                with_hint("Оплату картой сейчас настраиваем. Напиши мне — открою доступ вручную."),
+                parse_mode="HTML",
             )
             return
 
@@ -1486,7 +1575,7 @@ class TelegramBot:
         try:
             await message.reply_text(
                 with_hint(
-                    f"{plan.title} — вот страница с оплатой." + "\n\n"
+                    f"{plan.title} — вот страница оплаты." + "\n\n"
                     "После оплаты пришли сюда почту, которой платил, — открою доступ."
                 ),
                 parse_mode="HTML",
@@ -1497,19 +1586,32 @@ class TelegramBot:
 
     @staticmethod
     async def _ask_for_email(message, plan: Plan) -> None:
-        """Спросить почту перед выставлением счёта.
+        """Спросить почту — но уже после того, как человек выбрал карту.
 
-        Один вопрос вместо формы: касса требует адрес для чека, и он же потом
-        связывает платёж с этим чатом.
+        Здесь вопрос перестаёт быть анкетой: чек на почту — обычная часть
+        оплаты картой, и человек этого ждёт. Кнопка рядом оставляет выход:
+        не хочет оставлять адрес в чате — та же оплата на странице кассы,
+        где он введёт его сам.
         """
+        rows = []
+        if _OFFER.purchase_url:
+            rows.append(
+                [
+                    InlineKeyboardButton(
+                        "Лучше на странице оплаты",
+                        callback_data=f"{_PAY_CALLBACK}{plan.action}:{_PAY_PAGE}",
+                    )
+                ]
+            )
         try:
             await message.reply_text(
                 with_hint(
-                    f"{plan.title}." + "\n\n"
-                    "Пришли почту — на неё придёт чек, и туда же вышлю ссылку на оплату. "
-                    "Просто напиши её следующим сообщением."
+                    f"<b>{plan.title}</b> — принято." + "\n\n"
+                    "Напиши почту: касса пришлёт на неё чек, и по ней же я узнаю твою оплату. "
+                    "Ссылка придёт сюда следующим сообщением."
                 ),
                 parse_mode="HTML",
+                reply_markup=InlineKeyboardMarkup(rows) if rows else None,
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to ask for email: {e}", level="ERROR")

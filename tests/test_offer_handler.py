@@ -165,16 +165,53 @@ async def test_without_any_payment_path_the_contents_still_arrive(monkeypatch, q
 
 
 @pytest.mark.asyncio
-async def test_plan_click_sends_invoice_for_its_own_price(monkeypatch, quiet_store, plans):
+async def test_plan_click_offers_the_ways_to_pay(monkeypatch, quiet_store, plans):
+    """Сначала выбор способа, а не счёт и не форма.
+
+    Прежде клик по ступени первым делом просил почту — в момент самого
+    сильного намерения человек получал анкету. Почта нужна только карте,
+    и спрашивать её до выбора способа значит спрашивать у всех.
+    """
     monkeypatch.setattr(bot_module, "_OFFER", _offer(ready=True))
     monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
     query = FakeQuery()
 
     await bot_module.TelegramBot()._handle_plan_click(query, "1", plans[1])
 
+    assert query.message.invoices == [], "счёт выставлен до выбора способа"
+    text = query.message.replies[0]["text"]
+    assert "почт" not in text.lower(), "почту просят раньше, чем выбран способ"
+    labels = [row[0].text for row in query.message.replies[0]["reply_markup"].inline_keyboard]
+    assert any("вёзд" in label for label in labels)
+    assert any("артой" in label for label in labels)
+
+
+@pytest.mark.asyncio
+async def test_choosing_stars_sends_the_invoice_for_that_price(monkeypatch, quiet_store, plans):
+    monkeypatch.setattr(bot_module, "_OFFER", _offer(ready=True))
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+    query = FakeQuery()
+
+    await bot_module.TelegramBot()._handle_pay_click(
+        query, "1", f"{bot_module._PAY_CALLBACK}buy_premium:{bot_module._PAY_STARS}"
+    )
+
     assert len(query.message.invoices) == 1
     assert query.message.invoices[0]["prices"][0].amount == 1500
     assert query.message.invoices[0]["title"] == "Премиум — $20"
+
+
+@pytest.mark.asyncio
+async def test_a_single_way_skips_the_choice(monkeypatch, quiet_store, plans):
+    """Экран с одной кнопкой — не выбор, а задержка."""
+    monkeypatch.setattr(bot_module, "_OFFER", _offer(ready=True, url=""))
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+    monkeypatch.setattr(bot_module.config, "LAVA_API_KEY", "")
+    query = FakeQuery()
+
+    await bot_module.TelegramBot()._handle_plan_click(query, "1", plans[1])
+
+    assert len(query.message.invoices) == 1, "звёзды были единственным способом"
 
 
 @pytest.mark.asyncio
