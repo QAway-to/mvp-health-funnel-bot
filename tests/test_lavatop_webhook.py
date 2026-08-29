@@ -9,6 +9,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import main  # noqa: E402
@@ -134,3 +136,52 @@ def test_broken_basic_header_does_not_raise(monkeypatch):
     """Мусор в заголовке — отказ, а не пятисотка посреди приёма платежа."""
     _with_secret(monkeypatch)
     assert not main._webhook_is_ours(_FakeRequest(headers={"Authorization": "Basic не-base64!"}))
+
+
+# --- откуда берётся секрет вебхука ------------------------------------------
+#
+# Отдельной переменной у заказчика нет и заводить её он не хочет. Тогда
+# подписью служит тот же ключ, которым сервис ходит в кассу: одно значение
+# вместо двух, вписывается в кабинет один раз.
+#
+# Проверки ниже перезагружают модуль конфига — иначе значения из окружения
+# читаются один раз при импорте. После себя модуль возвращаем в исходное
+# состояние: оставленный перезагруженным, он унёс бы чужие значения в
+# соседние тесты, и упали бы они где-то далеко отсюда.
+
+
+@pytest.fixture
+def reloaded_config(monkeypatch):
+    import importlib
+
+    import config as config_module
+
+    def reload():
+        importlib.reload(config_module)
+        return config_module.config
+
+    yield reload
+    monkeypatch.undo()
+    importlib.reload(config_module)
+
+
+def test_the_api_key_signs_the_webhook_when_there_is_no_own_secret(
+    monkeypatch, reloaded_config
+):
+    monkeypatch.delenv("LAVATOP_SECRET", raising=False)
+    monkeypatch.setenv("LAVA_API", "ключ-кассы")
+    assert reloaded_config().LAVATOP_SECRET == "ключ-кассы"
+
+
+def test_an_own_secret_wins(monkeypatch, reloaded_config):
+    """Отдельный секрет включается в любой момент и перебивает ключ API."""
+    monkeypatch.setenv("LAVA_API", "ключ-кассы")
+    monkeypatch.setenv("LAVATOP_SECRET", "отдельный")
+    assert reloaded_config().LAVATOP_SECRET == "отдельный"
+
+
+def test_without_any_key_the_route_stays_off(monkeypatch, reloaded_config):
+    """Открытая точка выдачи доступа хуже неработающей оплаты."""
+    for name in ("LAVATOP_SECRET", "LAVA_API", "LAVATOP_API_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert not reloaded_config().LAVATOP_SECRET
