@@ -437,3 +437,57 @@ async def test_the_greeting_menu_stays_quiet_while_buying(quiet_store, paying_up
 
     greeting = paying_update.message.replies[0]
     assert greeting.get("reply_markup") is None
+
+
+# --- возврат со страницы кассы ----------------------------------------------
+#
+# Заплатил на витрине — `chat_id` там взяться неоткуда. Единственное общее у
+# кассы и бота — почта, и спросить её надо сразу: через час человек не
+# вспомнит, чего от него хотели, а доступ так и не откроется.
+
+
+@pytest.mark.asyncio
+async def test_return_from_checkout_asks_for_the_email(quiet_store):
+    update = FakeUpdate(chat_id=4101)
+
+    await bot_module.TelegramBot()._handle_start(
+        update, FakeContext([bot_module._PAID_START])
+    )
+
+    texts = " ".join(reply["text"].lower() for reply in update.message.replies)
+    assert "почту" in texts, "человек вернулся из кассы и не понял, что делать"
+
+
+@pytest.mark.asyncio
+async def test_return_from_checkout_does_not_start_selling_again(quiet_store):
+    """Он уже заплатил. Второй оффер после покупки читается как обман."""
+    update = FakeUpdate(chat_id=4102)
+
+    await bot_module.TelegramBot()._handle_start(
+        update, FakeContext([bot_module._PAID_START])
+    )
+
+    texts = " ".join(reply["text"].lower() for reply in update.message.replies)
+    assert "$" not in texts and "оплатить" not in texts
+
+
+@pytest.mark.asyncio
+async def test_an_already_open_access_is_not_asked_to_pay_again(quiet_store, monkeypatch):
+    update = FakeUpdate(chat_id=4103)
+    state = bot_module.store.user("4103")
+    monkeypatch.setattr(
+        bot_module.store, "user", lambda chat_id, **kw: replace_premium(state)
+    )
+
+    await bot_module.TelegramBot()._handle_start(
+        update, FakeContext([bot_module._PAID_START])
+    )
+
+    texts = " ".join(reply["text"].lower() for reply in update.message.replies)
+    assert "почту" not in texts, "у человека уже есть доступ, а его о чём-то просят"
+
+
+def replace_premium(state):
+    from dataclasses import replace
+
+    return replace(state, is_premium=True)

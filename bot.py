@@ -219,6 +219,12 @@ _PAY_CARD = "card"
 #: Отдельный способ, а не разновидность карты: он ведёт на страницу кассы
 #: мимо почты в чате, и выбирают его именно поэтому.
 _PAY_PAGE = "page"
+#: Метка возврата со страницы кассы. Человек уже заплатил, но `chat_id` там
+#: взяться неоткуда: на витрине его никто не знает. Единственное, что знают
+#: обе стороны, — почта, и просим мы её именно здесь, сразу после оплаты,
+#: пока человек ещё в этом контексте.
+_PAID_START = "oplacheno"
+
 _PAY_LABELS = {
     _PAY_STARS: "⭐ Звёздами в Telegram",
     _PAY_CARD: "💳 Картой",
@@ -787,12 +793,42 @@ class TelegramBot:
         if source.lower() in _GIFT_START_ARGS:
             await self._send_gift(update.message, chat_id)
 
+        # Вернулся со страницы оплаты. Спрашиваем почту тут же: через час он
+        # уже не вспомнит, что от него хотели, а доступ так и не откроется.
+        if source.lower() == _PAID_START:
+            await self._ask_to_claim(update.message, chat_id)
+            return
+
         # Пришёл с лендинга по кнопке уровня — сразу к оплате. Приветствие
         # выше всё равно нужно: человек впервые открыл чат, и счёт без единого
         # слова выглядит как ошибка. Но выбирать уровень заново он не будет.
         plan = next((p for p in _PLANS if p.action == plan_action), None)
         if plan:
             await self._start_payment(update.message, chat_id, plan)
+
+    async def _ask_to_claim(self, message, chat_id: str) -> None:
+        """Человек пришёл из кассы после оплаты — связать платёж с этим чатом.
+
+        Проверять всё равно будем у кассы (см. _handle_email): на слово здесь
+        верить нельзя, иначе доступ откроет любой, кто дошёл по этой же ссылке.
+        """
+        state = store.user(chat_id)
+        if state.is_premium:
+            await message.reply_text(
+                with_hint("Доступ уже открыт. Пиши /kurs — продолжим с того места, где остановились."),
+                parse_mode="HTML",
+            )
+            return
+
+        await store.event(chat_id, "returned_from_checkout")
+        await message.reply_text(
+            with_hint(
+                "Спасибо за покупку." + "\n\n"
+                "Напиши почту, которой платил, — по ней я найду твою оплату и открою доступ. "
+                "Это займёт несколько секунд."
+            ),
+            parse_mode="HTML",
+        )
 
     async def _send_welcome_photo(self, message, photo: str) -> None:
         """Картинка приветствия: файлом из репозитория, потом уже по file_id.
