@@ -42,11 +42,34 @@ def test_steps_are_numbered_without_gaps():
         assert numbers == list(range(1, len(numbers) + 1)), f"{slug}: дыра в нумерации {numbers}"
 
 
-def test_most_steps_reference_a_video():
-    """Шаг = ролик + текст. Шаги без тега ролика допустимы, но не как правило."""
-    total = sum(course.length for course in COURSES.values())
-    with_video = sum(1 for c in COURSES.values() for s in c.steps if s.video_tags)
-    assert with_video >= total * 0.8, f"с роликом только {with_video} из {total}"
+#: Направления, по которым автор снял ролики. У них шаг обязан быть парой.
+FILMED = ("beg", "son", "zakalivanie")
+
+#: Направления, где роликов нет вовсе. Курс идёт текстом — это осознанно, и
+#: файл обязан об этом говорить, иначе через месяц никто не вспомнит почему.
+TEXT_ONLY = ("vrednye-privychki", "zaryadka", "massazh")
+
+
+def test_filmed_courses_pair_every_step_with_a_clip():
+    """Там, где ролики сняты, шаг без ролика — недоделка, а не решение."""
+    for slug in FILMED:
+        course = COURSES[slug]
+        without = [step.number for step in course.steps if not step.video_tags]
+        assert not without, f"{slug}: шаги без ролика — {without}"
+
+
+def test_text_only_courses_say_so_out_loud():
+    """Курс без роликов — сознательный выбор, и он должен быть записан."""
+    for slug in TEXT_ONLY:
+        path = next(p for p in (Path(__file__).resolve().parents[1] / "prompts" / "steps").glob(f"*-{slug}.txt"))
+        header = path.read_text(encoding="utf-8")[:900].lower()
+        assert "ролик" in header, f"{slug}: не сказано, что курс идёт без роликов"
+
+
+def test_all_open_directions_have_a_course():
+    """Шесть направлений открыто — шесть курсов. Без исключений."""
+    expected = set(FILMED) | set(TEXT_ONLY)
+    assert set(COURSES) == expected, f"нет курса у: {expected - set(COURSES)}"
 
 
 def test_video_tags_are_ones_the_library_understands():
@@ -79,9 +102,11 @@ def test_both_running_landings_share_one_course():
         assert course_for(COURSES, tag).slug == "beg", tag
 
 
-def test_direction_without_a_course_returns_nothing():
-    assert course_for(COURSES, "vrednye-privychki") is None
+def test_unknown_tag_returns_nothing():
+    """Метка, которой нет ни у одного направления, курс не подбирает."""
     assert course_for(COURSES, "") is None
+    assert course_for(COURSES, "home") is None
+    assert course_for(COURSES, "мусор") is None
 
 
 # --- кнопки -----------------------------------------------------------------
