@@ -4,7 +4,6 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { site, routes } from '../config/site';
 import { leadMagnet } from '../content/lead';
-import { standaloneNav } from '../content/nav';
 import { botUrl } from '../lib/leadLink';
 import { isFilled } from '../lib/offer';
 import Landing from '../layouts/Landing.astro';
@@ -35,7 +34,7 @@ const botLink = botUrl(site.lead.telegramUrl);
 ---
 
 <Landing meta={meta} path={routes.start}>
-  <SiteHeader brand={site.brand} nav={standaloneNav} showCta={false} />
+  <SiteHeader brand={site.brand} nav={[]} showCta={false} />
 
   <main class="start">
     <div class="container start__inner">

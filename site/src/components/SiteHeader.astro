@@ -1,17 +1,27 @@
 ---
 import Cta from './Cta.astro';
 import { routes } from '../config/site';
+import { directions } from '../content/directions';
 import { startUrl } from '../lib/leadLink';
 import type { NavLink } from '../content/types';
 
 /**
  * В шапке стоит бесплатная ступень, а не покупка: продажный CTA не
  * появляется раньше 60% глубины страницы, а шапка видна всегда.
+ *
+ * Состав меню собирается здесь, а не приходит целиком снаружи. Раньше каждая
+ * страница передавала свой список, и со страницы направления не было ни одной
+ * ссылки наружу — только якоря её собственных секций и логотип, на котором
+ * написано «Сон». Уйти на другое направление можно было кнопкой «назад».
+ *
+ * Поэтому сквозные пункты («На главную», «Направления») ставятся всегда, а
+ * `nav` остаётся тем, что относится к текущей странице: её якоря.
  */
 
 interface Props {
   brand: string;
   brandHref?: string;
+  /** Якоря текущей страницы. Сквозные пункты добавляются сами. */
   nav: readonly NavLink[];
   /** На самой странице /start/ кнопка вела бы на неё же — прячем. */
   showCta?: boolean;
@@ -20,23 +30,74 @@ interface Props {
 }
 
 const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.props;
+
+/** Текущий адрес со слэшем на конце — в таком виде лежат все ссылки. */
+const here = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
+const isHome = here === routes.home;
+
+/** В списке — только открытые направления со своей страницей. */
+const openDirections = directions.filter((d) => d.status === 'live' && d.href);
+const insideDirections = openDirections.some((d) => d.href === here);
 ---
 
 <header class="header">
   <div class="header__inner container">
     <a class="header__brand" href={brandHref}>{brand}</a>
 
-    <nav class="header__nav" aria-label="Основная навигация">
-      {nav.map((link) => <a class="header__link" href={link.href}>{link.label}</a>)}
-    </nav>
+    <button
+      class="header__burger"
+      type="button"
+      aria-expanded="false"
+      aria-controls="site-nav"
+      data-nav-toggle
+    >
+      <span class="header__bars" aria-hidden="true"></span>
+      <span class="header__burger-label">Меню</span>
+    </button>
 
-    {
-      showCta && (
-        <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
-          Первый шаг бесплатно
-        </Cta>
-      )
-    }
+    <nav class="header__nav" id="site-nav" aria-label="Основная навигация">
+      {
+        !isHome && (
+          <a class="header__link" href={routes.home}>
+            На главную
+          </a>
+        )
+      }
+
+      <details class="header__menu" data-nav-menu>
+        <summary
+          class="header__link header__summary"
+          data-current={insideDirections ? 'true' : undefined}
+        >
+          Направления
+        </summary>
+        <ul class="header__dropdown">
+          {
+            openDirections.map((direction) => (
+              <li>
+                <a
+                  class="header__option"
+                  href={direction.href}
+                  aria-current={direction.href === here ? 'page' : undefined}
+                >
+                  {direction.title}
+                </a>
+              </li>
+            ))
+          }
+        </ul>
+      </details>
+
+      {nav.map((link) => <a class="header__link" href={link.href}>{link.label}</a>)}
+
+      {
+        showCta && (
+          <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
+            Первый шаг бесплатно
+          </Cta>
+        )
+      }
+    </nav>
   </div>
 </header>
 
@@ -72,55 +133,252 @@ const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.p
     display: flex;
     align-items: center;
     gap: 24px;
-    flex-wrap: wrap;
   }
 
   .header__link {
     font-size: 16px;
     color: var(--text-secondary);
+    white-space: nowrap;
   }
 
-  .header__link:hover {
-    color: var(--accent-hover);
-  }
-
+  .header__link:hover,
   .header__brand:hover {
     color: var(--accent-hover);
   }
 
-  /* На узких экранах три элемента в одну строку не помещаются и хедер
-     разрастается на три ряда. Складываем в два: логотип с кнопкой, ссылки под ними. */
-  @media (max-width: 719px) {
-    .header__inner {
-      display: grid;
-      grid-template-columns: 1fr auto;
-      grid-template-areas:
-        'brand cta'
-        'nav nav';
-      gap: 12px 16px;
-      align-items: center;
+  /* ---------- Выпадающий список направлений ---------- */
+
+  .header__menu {
+    position: relative;
+  }
+
+  .header__summary {
+    cursor: pointer;
+    list-style: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  /* Системный треугольник у summary в каждом браузере свой — рисуем сам. */
+  .header__summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .header__summary::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-right: 2px solid currentColor;
+    border-bottom: 2px solid currentColor;
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform 0.15s ease;
+  }
+
+  .header__menu[open] .header__summary::after {
+    transform: translateY(1px) rotate(-135deg);
+  }
+
+  .header__summary[data-current] {
+    color: var(--accent-hover);
+  }
+
+  .header__dropdown {
+    position: absolute;
+    top: calc(100% + 14px);
+    left: 50%;
+    transform: translateX(-50%);
+    min-width: 230px;
+    margin: 0;
+    padding: 8px 0;
+    list-style: none;
+    background: var(--card-secondary);
+    border: 1px solid var(--border-soft);
+    box-shadow: 0 12px 32px rgba(28, 24, 16, 0.14);
+  }
+
+  .header__option {
+    display: block;
+    padding: 10px 20px;
+    font-size: 16px;
+    color: var(--text-card);
+    white-space: nowrap;
+  }
+
+  .header__option:hover {
+    background: var(--card-primary);
+    color: var(--accent-hover);
+  }
+
+  .header__option[aria-current='page'] {
+    color: var(--accent-hover);
+    font-weight: 700;
+  }
+
+  /* ---------- Бургер ---------- */
+
+  .header__burger {
+    display: none;
+    margin-left: auto;
+    /* Хит-таргет не меньше 44px: пальцем по иконке в 20 пикселей не попасть. */
+    min-height: 44px;
+    padding: 0 14px;
+    align-items: center;
+    gap: 10px;
+    background: transparent;
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-button);
+    color: var(--text);
+    font-family: inherit;
+    font-size: 15px;
+    cursor: pointer;
+  }
+
+  .header__burger-label {
+    font-weight: 600;
+  }
+
+  /* Три полоски одной коробкой: средняя — сам блок, крайние — псевдоэлементы. */
+  .header__bars,
+  .header__bars::before,
+  .header__bars::after {
+    content: '';
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: currentColor;
+  }
+
+  .header__bars::before {
+    transform: translateY(-6px);
+  }
+
+  .header__bars::after {
+    transform: translateY(4px);
+  }
+
+  @media (max-width: 899px) {
+    .header__burger {
+      display: inline-flex;
     }
 
-    /* Длинное имя («Федерация здоровья») в одну строку рядом с кнопкой
-       не помещается и выталкивает её за экран: колонка grid-а по умолчанию
-       не сжимается ниже min-content. Разрешаем перенос и сжатие. */
+    /* Меню разворачивается панелью во всю ширину. В строку эти пункты на
+       телефоне не помещались, и шапка разрасталась на три ряда, съедая
+       первый экран — тот самый, ради которого человек пришёл. */
+    .header__nav {
+      display: none;
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0;
+      padding: 8px var(--gutter) 20px;
+      background: var(--bg-base);
+      border-bottom: 1px solid var(--border-hairline);
+      /* На невысоком экране раскрытый список направлений выходит за нижний
+         край, и до кнопки внизу панели уже не добраться: страница за
+         панелью не прокручивается. Пусть прокручивается сама панель. */
+      max-height: calc(100dvh - 100%);
+      overflow-y: auto;
+      overscroll-behavior: contain;
+    }
+
+    .header__nav--open {
+      display: flex;
+    }
+
+    .header__link {
+      padding: 14px 0;
+      font-size: 17px;
+      border-bottom: 1px solid var(--border-hairline);
+    }
+
+    .header__menu {
+      position: static;
+    }
+
+    /* Внутри развёрнутой панели список не всплывает, а раскрывается на
+       месте: всплывающее поверх всплывающего теряется. */
+    .header__dropdown {
+      position: static;
+      transform: none;
+      min-width: 0;
+      padding: 0 0 8px;
+      background: transparent;
+      border: 0;
+      box-shadow: none;
+    }
+
+    .header__option {
+      padding: 12px 0 12px 20px;
+    }
+
+    .header__cta {
+      margin-top: 16px;
+      text-align: center;
+    }
+  }
+
+  @media (max-width: 480px) {
     .header__brand {
-      grid-area: brand;
       font-size: 15px;
       min-width: 0;
       overflow-wrap: anywhere;
     }
 
-    .header__nav {
-      grid-area: nav;
-      margin-left: 0;
-      gap: 20px;
+    .header__burger-label {
+      /* Остаётся только иконка: имени бренда и слова «Меню» рядом уже тесно. */
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      overflow: hidden;
+      clip-path: inset(50%);
+      white-space: nowrap;
     }
 
-    .header__cta {
-      grid-area: cta;
-      padding: 10px 16px;
-      font-size: 15px;
+    .header__burger {
+      padding: 0;
+      justify-content: center;
+      width: 44px;
     }
   }
 </style>
+
+<script>
+  /**
+   * Меню умеет открываться само — нативный <details> открывается и мышью, и
+   * с клавиатуры. Чего он не умеет, так это закрываться: человек уводит мышь,
+   * кликает мимо, а список висит поверх страницы до повторного клика по нему.
+   */
+  const burger = document.querySelector<HTMLButtonElement>('[data-nav-toggle]');
+  const nav = document.getElementById('site-nav');
+  const menu = document.querySelector<HTMLDetailsElement>('[data-nav-menu]');
+
+  const closeDropdown = () => menu?.removeAttribute('open');
+
+  const setPanel = (open: boolean) => {
+    nav?.classList.toggle('header__nav--open', open);
+    burger?.setAttribute('aria-expanded', String(open));
+    if (!open) closeDropdown();
+  };
+
+  burger?.addEventListener('click', () => {
+    setPanel(!nav?.classList.contains('header__nav--open'));
+  });
+
+  document.addEventListener('click', (event) => {
+    if (menu?.open && !menu.contains(event.target as Node)) closeDropdown();
+  });
+
+  document.addEventListener('keydown', (event) => {
+    if (event.key === 'Escape') setPanel(false);
+  });
+
+  /* Клик по ссылке закрывает панель за собой: иначе на якоре страница
+     уезжает под развёрнутым меню и человек смотрит в него, а не в раздел. */
+  nav?.querySelectorAll('a').forEach((link) => {
+    link.addEventListener('click', () => setPanel(false));
+  });
+</script>

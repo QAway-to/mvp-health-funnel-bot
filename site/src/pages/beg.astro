@@ -3,7 +3,6 @@ import SiteFooter from '../components/SiteFooter.astro';
 import SiteHeader from '../components/SiteHeader.astro';
 import { landingA } from '../content/landing-a';
 import { landingB } from '../content/landing-b';
-import { standaloneNav } from '../content/nav';
 import Landing from '../layouts/Landing.astro';
 
 /**
@@ -39,7 +38,7 @@ const options = [
 ---
 
 <Landing meta={meta} path="/beg/">
-  <SiteHeader brand="Бег" nav={standaloneNav} segment="beg" />
+  <SiteHeader brand="Бег" nav={[]} segment="beg" />
 
   <main class="chooser">
     <div class="chooser__intro container">

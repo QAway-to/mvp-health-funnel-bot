@@ -5,7 +5,6 @@ import SiteHeader from '../components/SiteHeader.astro';
 import VideoPlayer from '../components/VideoPlayer.astro';
 import { site, routes } from '../config/site';
 import { landingA } from '../content/landing-a';
-import { standaloneNav } from '../content/nav';
 import { startUrl } from '../lib/leadLink';
 import { featuredTier, isFilled } from '../lib/offer';
 import Landing from '../layouts/Landing.astro';
@@ -32,7 +31,7 @@ const { mechanism } = landingA;
 ---
 
 <Landing meta={meta} path={routes.demo}>
-  <SiteHeader brand="Комфортный бег" nav={standaloneNav} segment="demo" />
+  <SiteHeader brand="Комфортный бег" nav={[]} segment="demo" />
 
   <main>
     <section class="section section--alt" data-section="demo">
