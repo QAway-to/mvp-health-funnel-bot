@@ -90,3 +90,33 @@ def test_marker_wins_over_the_question():
     text = "Спишь нормально или не очень?\n@варианты: сплю нормально | просыпаюсь ночью"
     _, options = choices.extract(text)
     assert options == ("Сплю нормально", "Просыпаюсь ночью")
+
+
+# --- разметка не должна попадать на кнопку ----------------------------------
+#
+# Варианты вырезаются из ответа, который к этому моменту уже переведён в HTML.
+# Сообщение Telegram разберёт, подпись кнопки — нет: на кнопке так и было
+# написано «<b>Встаю на рассвете</b>».
+
+
+def test_tags_are_stripped_from_marked_options():
+    text = "Как утро?\n@варианты: <b>Встаю на рассвете</b> | <i>сплю до последнего</i>"
+    _, options = choices.extract(text)
+    assert options == ("Встаю на рассвете", "Сплю до последнего")
+
+
+def test_tags_are_stripped_from_a_parsed_question():
+    _, options = choices.extract("Ты <b>встаёшь на рассвете</b> или спишь до последнего?")
+    assert all("<" not in option for option in options), options
+
+
+def test_entities_become_characters():
+    _, options = choices.extract("Что выбираешь?\n@варианты: чай &amp; кофе | вода")
+    assert options[0] == "Чай & кофе"
+
+
+def test_length_is_measured_after_the_tags_are_gone():
+    """Иначе теги съедали бы лимит, и подпись обрезалась бы на пустом месте."""
+    label = "Встаю на рассвете и сразу иду на улицу"
+    _, options = choices.extract(f"Как утро?\n@варианты: <b>{label}</b> | сплю")
+    assert options[0] == label

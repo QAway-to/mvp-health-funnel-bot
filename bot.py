@@ -21,7 +21,7 @@ from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
 from utils.purchase import email_in
 from utils import lavatop, stars
-from utils.telegram_html import has_markdown, to_telegram_html
+from utils.telegram_html import has_markdown, plain_text, to_telegram_html
 from utils.steps import course_for, load_courses
 from utils.testimonials import load_testimonials, pick as pick_testimonial
 from utils.welcome import load_welcome, welcome_for
@@ -228,7 +228,7 @@ _PAY_LABELS = {
 # Подпись под каждым сообщением бота. Кнопки удобны, но создают ощущение
 # анкеты: человек кликает и не догадывается, что можно просто спросить своими
 # словами — а именно свой вопрос и переводит разговор из меню в диалог.
-_CHAT_HINT = "\n\n<b>Или пиши прямо в чат</b>"
+_CHAT_HINT = "\n\n<b>Пиши мне прямо сюда — в чат, этот диалог живой</b>"
 
 
 def with_hint(text: str) -> str:
@@ -237,8 +237,12 @@ def with_hint(text: str) -> str:
     Проверка на повтор не лишняя: текст может прийти уже с подписью — из
     промпта, из догоняющего сообщения или из ответа, который её унаследовал.
     Две одинаковые строки подряд читаются как сбой.
+
+    Ищем саму подпись, а не её копию в кавычках. Копия здесь уже была и уже
+    разъехалась: формулировку поменяли в одном месте, а проверка осталась
+    сторожить прежнюю — и подпись стала дублироваться.
     """
-    if not text or "Или пиши прямо в чат" in text:
+    if not text or plain_text(_CHAT_HINT).strip() in text:
         return text
     return text + _CHAT_HINT
 
