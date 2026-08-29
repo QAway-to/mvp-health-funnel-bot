@@ -1130,6 +1130,17 @@ class TelegramBot:
 
         await self._answer(update, update.message, text)
 
+    @staticmethod
+    def _chat_holding(email: str, *, besides: str) -> str:
+        """Чат, которому эта почта уже открыла доступ. Пусто — свободна."""
+        wanted = email.strip().lower()
+        for state in store.all_users():
+            if state.chat_id == besides or not state.is_premium:
+                continue
+            if state.email and state.email.strip().lower() == wanted:
+                return state.chat_id
+        return ""
+
     async def _handle_email(self, message, chat_id: str, address: str) -> bool:
         """Запомнить почту и, если по ней уже платили, открыть доступ.
 
@@ -1149,6 +1160,28 @@ class TelegramBot:
         if state.is_premium:
             await message.reply_text(
                 with_hint("Записал почту. Доступ у тебя и так открыт."), parse_mode="HTML"
+            )
+            return True
+
+        # Одна оплата — один доступ. Касса отвечает только «по этой почте
+        # платили», а не «сколько раз и кому». Без этой проверки один
+        # оплаченный адрес открывал бы премиум всем, кто его назовёт: узнать
+        # чужую почту нетрудно, а покупка при этом всего одна.
+        taken = self._chat_holding(address, besides=chat_id)
+        if taken:
+            log_agent_action(
+                "Payments",
+                f"Почта {address} уже открыла доступ чату {taken} — чату {chat_id} отказано",
+                level="WARNING",
+            )
+            await store.event(chat_id, "email_already_claimed")
+            await message.reply_text(
+                with_hint(
+                    "По этой почте доступ уже открыт — в другом чате." + "\n\n"
+                    "Если это твоя покупка и ты пишешь с другого аккаунта, напиши мне: "
+                    "перенесу доступ сюда."
+                ),
+                parse_mode="HTML",
             )
             return True
 
