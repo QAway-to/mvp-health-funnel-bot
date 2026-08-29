@@ -17,6 +17,7 @@ from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
+from utils.photos import PhotoCache, photo_path
 from utils import stars
 from utils.telegram_html import has_markdown, to_telegram_html
 from utils.steps import course_for, load_courses
@@ -323,6 +324,10 @@ stars.log_check(_DECLARED_PLANS, config.STARS_PER_DOLLAR)
 # STARS_PRICE=2500 при кнопке «$20» стоит дороже, чем несколько дней без
 # оплаты звёздами.
 _PLANS = stars.without_mismatched(_DECLARED_PLANS, config.STARS_PER_DOLLAR)
+
+#: file_id картинок приветствия, полученные этим ботом. Пустой при запуске:
+#: чужие идентификаторы для него не существуют.
+_PHOTOS = PhotoCache()
 
 def _default_plan() -> "Plan | None":
     """Ступень для команды /buy: рекомендуемая, иначе первая продаваемая."""
@@ -719,12 +724,7 @@ class TelegramBot:
         photo = greeting.photo if greeting else ""
 
         if photo:
-            try:
-                await update.message.reply_photo(photo=photo)
-            except TelegramError as e:
-                log_agent_action(
-                    "Telegram", f"Failed to send welcome photo: {e}", level="WARNING"
-                )
+            await self._send_welcome_photo(update.message, photo)
 
         keyboard = self._welcome_keyboard(greeting)
         try:
@@ -747,6 +747,33 @@ class TelegramBot:
         plan = next((p for p in _PLANS if p.action == plan_action), None)
         if plan:
             await self._start_payment(update.message, chat_id, plan)
+
+    async def _send_welcome_photo(self, message, photo: str) -> None:
+        """Картинка приветствия: файлом из репозитория, потом уже по file_id.
+
+        Значение из welcome.txt может быть и готовым идентификатором — такие
+        ссылки ещё встречаются, — но именем файла оно надёжнее: file_id
+        принадлежит боту, а не картинке, и при смене бота перестаёт работать.
+        """
+        cached = _PHOTOS.get(photo)
+        path = None if cached else photo_path(photo)
+        try:
+            if cached:
+                await message.reply_photo(photo=cached)
+                return
+            if path is None:
+                await message.reply_photo(photo=photo)
+                return
+            with path.open("rb") as handle:
+                sent = await message.reply_photo(photo=handle)
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to send welcome photo: {e}", level="WARNING")
+            return
+
+        # Запоминаем, чтобы следующему человеку картинка ушла без перезаливки.
+        sizes = getattr(sent, "photo", None) or []
+        if sizes:
+            _PHOTOS.remember(photo, sizes[-1].file_id)
 
     @staticmethod
     def _welcome_keyboard(greeting) -> InlineKeyboardMarkup | None:

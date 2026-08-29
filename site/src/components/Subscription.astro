@@ -46,7 +46,10 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
              единственный с яркой кнопкой: если выделены все, не выделен никто. */
           const featured = Boolean(tier.badge);
           return (
-            <article class:list={['tier', featured ? 'tier--featured' : 'tier--plain']}>
+            <article
+              class:list={['tier', featured ? 'tier--featured' : 'tier--plain']}
+              data-pay-card={tier.hasCheckout ? tier.id : undefined}
+            >
               {tier.badge && <p class="tier__badge">{tier.badge}</p>}
               <p class:list={['tier__label', featured && 'tier__label--accent']}>{tier.label}</p>
               {tier.priceLabel && (
@@ -175,12 +178,31 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
    * по Esc, ловушку фокуса и подложку. Своё пришлось бы писать втрое длиннее
    * и всё равно хуже для клавиатуры.
    */
+  const openFor = (id: string | undefined) => {
+    const dialog = document.querySelector<HTMLDialogElement>(`[data-pay-dialog="${id}"]`);
+    if (dialog && !dialog.open) dialog.showModal();
+  };
+
+  /* Кликается вся карточка, а не только кнопка внизу.
+     Кнопка остаётся: она — то, что видит клавиатура и читает скринридер, и
+     она же говорит, что произойдёт. Но человек целится в карточку, а тонкая
+     рамка кнопки на светлом фоне за кнопку не читается. */
+  document.querySelectorAll<HTMLElement>('[data-pay-card]').forEach((card) => {
+    card.addEventListener('click', (event) => {
+      /* Клик по самой кнопке, по ссылке или внутри уже открытого диалога
+         обрабатывается своим обработчиком — второй раз открывать нечего. */
+      const target = event.target as HTMLElement;
+      if (target.closest('[data-pay-open], a, dialog')) return;
+      openFor(card.dataset.payCard);
+    });
+  });
+
   document.querySelectorAll<HTMLElement>('[data-pay-open]').forEach((trigger) => {
     const id = trigger.dataset.payOpen;
     const dialog = document.querySelector<HTMLDialogElement>(`[data-pay-dialog="${id}"]`);
     if (!dialog) return;
 
-    trigger.addEventListener('click', () => dialog.showModal());
+    trigger.addEventListener('click', () => openFor(id));
 
     /* Клик по подложке закрывает: цель события — сам dialog только тогда,
        когда попали мимо его содержимого. */
@@ -397,17 +419,30 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
     margin-top: auto;
   }
 
-  /* База — тоже покупка, но визуально уступает премиуму. */
+  /* База и сопровождение — тоже покупка, просто не рекомендованная.
+     Уступать премиуму она должна яркостью, а не признаками кнопки: белая
+     заливка с тонкой серой рамкой на светлой карточке читалась как блок
+     текста, и по ней не кликали. Рамка теперь акцентная и заметно толще. */
   .tier :global(.tier__cta--outline) {
     background: transparent;
-    border: 1px solid var(--border-strong);
+    border: 2px solid var(--accent);
     color: var(--text-card);
   }
 
   .tier :global(.tier__cta--outline:hover) {
-    background: transparent;
-    border-color: var(--accent-text);
-    color: var(--accent-hover);
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--on-accent);
+  }
+
+  /* Курсор по всей карточке: она кликается целиком, и это надо показать
+     до клика, а не после. */
+  .tier[data-pay-card] {
+    cursor: pointer;
+  }
+
+  .tier[data-pay-card]:hover {
+    border-color: var(--accent);
   }
 
   .subscription__included {

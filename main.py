@@ -8,6 +8,7 @@
 import os
 import secrets
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -15,7 +16,7 @@ from fastapi import FastAPI, HTTPException, Request
 from bot import telegram_bot
 from config import config
 from utils import lavatop, site
-from utils.content_library import library
+from utils.content_library import library, tags_for_text
 
 
 def library_size() -> int:
@@ -106,6 +107,79 @@ async def telegram_webhook(request: Request):
     if not accepted:
         raise HTTPException(status_code=403, detail="bad secret")
     return {"ok": True}
+
+
+@app.get("/tasks/library")
+async def inspect_library(request: Request):
+    """Почему к ответу не прикрепился ролик.
+
+    Вопрос задавался уже дважды, и оба раза ответ был в двух числах, которых
+    неоткуда взять: сколько роликов по этой теме вообще есть и сколько из них
+    человеку видно. В логе остаётся только «ролик не подобран» — верно, но
+    неотличимо от «библиотека пуста» и от «всё уже показано».
+
+    `?q=` — прогнать запрос через тот же подбор, что в диалоге.
+    `?chat=` — от лица конкретного человека: с его подпиской и его просмотрами.
+
+    Только чтение, под тем же секретом, что остальные служебные маршруты:
+    здесь видно, кто что смотрел.
+    """
+    if not config.TASKS_SECRET:
+        raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
+    provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
+    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+        raise HTTPException(status_code=403, detail="bad secret")
+
+    chat_id = request.query_params.get("chat", "")
+    query = request.query_params.get("q", "")
+
+    is_premium, seen = False, ()
+    if chat_id:
+        state = store.user(chat_id)
+        is_premium, seen = state.is_premium, state.seen_content
+
+    items = [
+        {
+            "message_id": item.message_id,
+            "tier": item.tier,
+            "topics": sorted(library.topics_of(item)),
+            "title": item.title,
+            "seen": item.message_id in seen,
+        }
+        for item in library.all()
+    ]
+
+    answer: dict[str, Any] = {
+        "ok": True,
+        "total": len(items),
+        "premium_only": sum(1 for i in items if i["tier"] == "premium"),
+        "items": items,
+    }
+    if chat_id:
+        answer["viewer"] = {
+            "chat": chat_id,
+            "is_premium": is_premium,
+            "seen": len(seen),
+            "visible": sum(
+                1 for i in items
+                if not i["seen"] and (is_premium or i["tier"] != "premium")
+            ),
+        }
+    if query:
+        wanted = sorted(tags_for_text(query))
+        picked = library.match(query, is_premium=is_premium, exclude=seen)
+        answer["query"] = {
+            "text": query,
+            "tags": wanted,
+            "picked": picked.message_id if picked else None,
+            # Почему не подобралось: те же ролики, но без фильтров.
+            "on_topic": [
+                {"message_id": i["message_id"], "tier": i["tier"], "seen": i["seen"]}
+                for i in items
+                if set(wanted) & set(i["topics"])
+            ],
+        }
+    return answer
 
 
 @app.api_route("/tasks/reindex", methods=["GET", "POST"])

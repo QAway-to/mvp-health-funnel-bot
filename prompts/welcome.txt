@@ -34,7 +34,7 @@
 # Строки с # в сообщение не попадают.
 
 == default
-photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADAgADdwADPAQ
+photo: silhouettes.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Здесь про здоровье говорят просто: тело работает так, как задумала природа, и наша задача ему не мешать. Без рекордов и без обещаний вылечить всё за неделю.
@@ -48,6 +48,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 💆 Массаж и самомассаж
 
 == beg
+photo: race-road.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Здесь бег — не спорт, а способ вернуть телу лёгкость. Километр, десять минут, спокойным темпом. Без марафонов и без надрыва.
@@ -63,6 +64,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 🌱 Бег для долголетия
 
 == komfort
+photo: barefoot-step.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Если после пробежек болят колени, а утром тело тяжелее, чем вчера — дело почти никогда не в самом беге. Причин ровно шесть: дорога под ногами, техника, нагрузка без отдыха, обувь, слабые мышцы и лишний вес. Убираются все шесть.
@@ -77,6 +79,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 🚀 Как начать с нуля
 
 == sila
+photo: mountain.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Если ты уже тренируешься, бег с залом не конкурирует — он лежит под ним. Кислород, стопа и дыхание работают на восстановление, на сон и на выносливость, которой не добавит ни одна штанга.
@@ -91,6 +94,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 🦶 Стопа и опора
 
 == son
+photo: son-night.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Сон начинается не в кровати, а за два часа до неё. Свет, температура, тишина, ужин и порядок в голове — каждая мелочь делается за минуты, и ни таблетки, ни приложения тут не нужны.
@@ -105,6 +109,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic ✅ Что даёт настроенный сон
 
 == zakalivanie
+photo: zakalivanie-water.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Сидеть в холодной воде подольше — не наша задача. Закаливание про заряд, а не про выдержку: окунулся, облился и оделся раньше, чем тело начнёт тратить тепло. Отсюда пять минут вместо получаса.
@@ -120,6 +125,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 👶 Закаливание детей
 
 == vrednye-privychki
+photo: privychki-stretch.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Привычку не бросают — у неё забирают работу. Каждая что-то для тебя делает: снимает напряжение, даёт повод встретиться, разрешает не думать. Пока эта работа не передана другому, запрет держится на силе воли — а она заканчивается к вечеру пятницы.
@@ -135,6 +141,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 😑 Лень и зависть
 
 == zaryadka
+photo: zaryadka-sunrise.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Утро — это порядок, а не набор упражнений: подъём, бег, дыхание, разминка, самомассаж, холодная вода и только потом еда. От порядка зависит больше, чем от самих упражнений.
@@ -149,6 +156,7 @@ photo: AgACAgIAAxkDAAIBlGpEjyrhn3nTmkDj9hU9fh0JekdBAALGGGsb5FcpSiuxj4BBUhnnAQADA
 @topic 🍏 Еда после зарядки
 
 == massazh, samomassazh
+photo: massazh-hands.jpg
 Привет! На связи Богдан, Федерация Здоровья.
 
 Приёмы у массажа и самомассажа одни и те же — разница только в том, чьи руки работают. Поэтому направление одно.

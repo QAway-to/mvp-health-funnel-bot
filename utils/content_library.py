@@ -155,6 +155,10 @@ class ContentLibrary:
     def premium_count(self) -> int:
         return sum(1 for item in self._items.values() if item.tier == TIER_PREMIUM)
 
+    def all(self) -> tuple[ContentItem, ...]:
+        """Всё содержимое по возрастанию номера поста — для разбора и отчётов."""
+        return tuple(self._items[key] for key in sorted(self._items))
+
     async def load(self) -> None:
         rows = await sheets_api.call("content_all")
         if not isinstance(rows, list):
