@@ -11,6 +11,10 @@
   выставление счёта. Шесть карточек всё равно заводятся руками в кабинете.
 * **Менять название и описание самого продукта.** В теле PATCH единственное
   поле `offers`; `title` и `description` продукта только читаются.
+* **Править один оффер в отдельности.** В `offers` идут ВСЕ офферы продукта:
+  всё, чего в массиве нет, касса считает удалённым и отвечает «You can only
+  update existing offers». Поэтому правка одного оффера начинается с чтения
+  остальных — иначе два плана из трёх исчезли бы с витрины.
 
 То есть автоматизировать можно ровно одно: названия офферов, их описания и
 цены. Это и делается здесь.
@@ -40,6 +44,25 @@ class Offer:
     id: str
     name: str
     prices: tuple[tuple[str, float], ...]
+    description: str = ""
+
+    def payload(self) -> dict[str, Any]:
+        """Оффер в том виде, в каком его принимает PATCH.
+
+        Описание кладём, только если оно у нас есть: пустая строка затёрла бы
+        текст в кабинете, а соседние офферы мы здесь не правим — мы их
+        сохраняем.
+        """
+        body: dict[str, Any] = {
+            "id": self.id,
+            "name": self.name,
+            "prices": [
+                {"amount": amount, "currency": currency} for currency, amount in self.prices
+            ],
+        }
+        if self.description:
+            body["description"] = self.description
+        return body
 
 
 @dataclass(frozen=True)
@@ -53,7 +76,13 @@ class Product:
             "id": self.id,
             "title": self.title,
             "offers": [
-                {"id": o.id, "name": o.name, "prices": dict(o.prices)} for o in self.offers
+                {
+                    "id": o.id,
+                    "name": o.name,
+                    "prices": dict(o.prices),
+                    "description": o.description,
+                }
+                for o in self.offers
             ],
         }
 
@@ -82,6 +111,7 @@ def _parse_products(payload: Any) -> tuple[Product, ...]:
                     for price in (offer.get("prices") or [])
                     if isinstance(price, dict)
                 ),
+                description=str(offer.get("description") or ""),
             )
             for offer in (data.get("offers") or [])
             if isinstance(offer, dict)
@@ -123,11 +153,8 @@ async def update_offer(
     Цены — либо одна валюта, либо все три, иначе касса откажет. Проверяем это
     до запроса: их ошибка приходит без объяснения, а причина всегда одна.
     """
-    offer: dict[str, Any] = {"id": offer_id}
-    if name is not None:
-        offer["name"] = name
-    if description is not None:
-        offer["description"] = description
+    # Цены проверяем до всякой сети: ошибка кассы приходит без объяснения, а
+    # причина всегда одна и та же.
     if prices:
         unknown = set(prices) - set(CURRENCIES)
         if unknown:
@@ -137,17 +164,41 @@ async def update_offer(
                 "цена задаётся либо в одной валюте, либо во всех трёх; "
                 f"передано {len(prices)}"
             )
-        offer["prices"] = [
-            {"amount": amount, "currency": currency} for currency, amount in prices.items()
-        ]
+
+    # Соседние офферы обязаны уехать вместе с правленым, иначе касса сочтёт
+    # их удалёнными. Читаем их прямо перед отправкой, чтобы не отправить в
+    # кабинет то, что успело устареть.
+    product = next((p for p in await list_products(api_key) if p.id == product_id), None)
+    if product is None:
+        raise LavaError(f"продукта {product_id} нет в кабинете")
+    current = next((o for o in product.offers if o.id == offer_id), None)
+    if current is None:
+        raise LavaError(f"у продукта {product_id} нет оффера {offer_id}")
+
+    # Незаданные поля берём из кабинета, а не опускаем: касса требует их у
+    # каждого элемента массива, и «не трогать цену» здесь означает «прислать
+    # ту же самую».
+    edited = Offer(
+        id=offer_id,
+        name=current.name if name is None else name,
+        prices=(
+            current.prices
+            if not prices
+            else tuple((currency, amount) for currency, amount in prices.items())
+        ),
+        description=current.description if description is None else description,
+    )
+    offers = [edited.payload() if o.id == offer_id else o.payload() for o in product.offers]
 
     async with httpx.AsyncClient(timeout=30) as client:
         response = await client.patch(
             f"{BASE_URL}/api/v2/products/{product_id}",
             headers=_headers(api_key),
-            json={"offers": [offer]},
+            json={"offers": offers},
         )
     if response.status_code >= 400:
         raise LavaError(f"{response.status_code}: {response.text[:300]}")
-    log_agent_action("Lava", f"Оффер {offer_id} обновлён у продукта {product_id}")
+    log_agent_action(
+        "Lava", f"Оффер {offer_id} обновлён у продукта {product_id}; всего офферов: {len(offers)}"
+    )
     return response.json()
