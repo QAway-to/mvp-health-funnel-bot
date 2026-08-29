@@ -18,6 +18,7 @@ from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils import stars
 from utils.telegram_html import has_markdown, to_telegram_html
+from utils.testimonials import load_testimonials, pick as pick_testimonial
 from utils.welcome import load_welcome, welcome_for
 
 _PROMPTS_DIR = Path(__file__).parent / "prompts"
@@ -199,6 +200,32 @@ _GIFT_BUTTON = "🎁 Забрать чек-лист: 30 шагов"
 # номер, а не сама тема: в callback_data Telegram даёт 64 байта, и русская
 # подпись в UTF-8 съедает их вдвое быстрее латиницы.
 _TOPIC_CALLBACK = "t:"
+
+# Подпись под каждым сообщением бота. Кнопки удобны, но создают ощущение
+# анкеты: человек кликает и не догадывается, что можно просто спросить своими
+# словами — а именно свой вопрос и переводит разговор из меню в диалог.
+_CHAT_HINT = "\n\n<b>Или пиши прямо в чат</b>"
+
+
+def with_hint(text: str) -> str:
+    """Дописать подпись, если её там ещё нет.
+
+    Проверка на повтор не лишняя: текст может прийти уже с подписью — из
+    промпта, из догоняющего сообщения или из ответа, который её унаследовал.
+    Две одинаковые строки подряд читаются как сбой.
+    """
+    if not text or "Или пиши прямо в чат" in text:
+        return text
+    return text + _CHAT_HINT
+
+# Сколько кнопок с темами вешать под ответом. Меньше, чем в приветствии: там
+# это меню, здесь — подсказка «можно дальше», и длинный список под каждым
+# ответом быстро превращается в шум.
+_TOPICS_AFTER_ANSWER = 3
+
+# Отзывы участников. Показываются рядом с оффером — там, где человеку нужно
+# чужое подтверждение, а не наше обещание.
+_TESTIMONIALS = load_testimonials()
 _GIFT_CALLBACK = "gift"
 # Deep link t.me/<bot>?start=gift — так подарок выдаётся сразу после перехода
 # из рекламы или поста, без лишнего клика.
@@ -669,7 +696,7 @@ class TelegramBot:
         keyboard = self._welcome_keyboard(greeting)
         try:
             await update.message.reply_text(
-                welcome,
+                with_hint(welcome),
                 parse_mode="HTML",
                 disable_web_page_preview=True,
                 reply_markup=keyboard,
@@ -702,6 +729,25 @@ class TelegramBot:
             rows.append([InlineKeyboardButton(_GIFT_BUTTON, callback_data=_GIFT_CALLBACK)])
         return InlineKeyboardMarkup(rows) if rows else None
 
+    @staticmethod
+    def _topics_keyboard(source: str, *, exclude: str = "") -> InlineKeyboardMarkup | None:
+        """Кнопки с темами под ответом — из раздела того направления, откуда человек.
+
+        Меньше, чем в приветствии: там это меню, здесь подсказка «можно
+        дальше». Тема, которую только что разобрали, исключается — предлагать
+        её следующей строкой значит показать, что бот не слушал.
+        """
+        greeting = welcome_for(_WELCOME, source)
+        if greeting is None or not greeting.topics:
+            return None
+
+        rows = [
+            [InlineKeyboardButton(label, callback_data=f"{_TOPIC_CALLBACK}{greeting.key}:{i}")]
+            for i, label in enumerate(greeting.topics)
+            if label != exclude
+        ][:_TOPICS_AFTER_ANSWER]
+        return InlineKeyboardMarkup(rows) if rows else None
+
     async def _handle_topic_click(self, update: Update, query, chat_id: str, data: str) -> None:
         """Клик по теме = вопрос по ней. Дальше обычный путь ответа.
 
@@ -732,7 +778,7 @@ class TelegramBot:
             return
         try:
             await message.reply_text(
-                _GIFT_TEXT, parse_mode="HTML", disable_web_page_preview=True
+                with_hint(_GIFT_TEXT), parse_mode="HTML", disable_web_page_preview=True
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send gift: {e}", level="ERROR")
@@ -844,11 +890,15 @@ class TelegramBot:
         # случайный ролик не в тему обесценивает остальные.
         await self._send_topic_video(update, state, text)
 
+        # Кнопки под ответом — продолжение того же меню, что в приветствии.
+        # Без них человек, кликнувший тему, дальше обязан печатать, и разговор
+        # чаще всего заканчивается именно здесь.
+        topics = self._topics_keyboard(state.source, exclude=text)
         try:
-            await message.reply_text(reply, parse_mode="HTML")
+            await message.reply_text(with_hint(reply), parse_mode="HTML", reply_markup=topics)
         except TelegramError:
             try:
-                await message.reply_text(reply)
+                await message.reply_text(with_hint(reply), reply_markup=topics)
             except TelegramError as e:
                 log_agent_action("Telegram", f"Failed to send reply: {e}", level="ERROR")
 
@@ -878,9 +928,16 @@ class TelegramBot:
         которого сейчас рано, иначе остаётся только промолчать.
         """
         keyboard = self._keyboard(_OFFER.cta_buttons)
+        # Отзыв идёт впереди оффера, а не после: чужой опыт отвечает на «а у
+        # меня получится» до того, как этот вопрос станет возражением. Нет
+        # подходящего под направление — идём без него, выдумывать нельзя.
+        testimonial = pick_testimonial(_TESTIMONIALS, state.source)
+        text = _OFFER.cta_text
+        if testimonial:
+            text = testimonial.text + "\n\n" + text
         try:
             await message.reply_text(
-                _OFFER.cta_text, parse_mode="HTML", reply_markup=keyboard
+                with_hint(text), parse_mode="HTML", reply_markup=keyboard
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send CTA: {e}", level="WARNING")
@@ -934,7 +991,7 @@ class TelegramBot:
             try:
                 await self._app.bot.send_message(
                     chat_id=state.chat_id,
-                    text=step.text,
+                    text=with_hint(step.text),
                     parse_mode="HTML",
                     disable_web_page_preview=True,
                     reply_markup=self._keyboard(step.buttons),
