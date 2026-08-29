@@ -75,7 +75,7 @@ export const site = {
     payUrl: 'https://app.lava.top/products/3452acae-596c-4278-8dc4-81d7b5ffc8f3',
     /** Цена и своя ссылка по уровням. Пусто — берётся общая payUrl выше. */
     tiers: {
-      base: { price: '$9', payUrl: '' },
+      base: { price: '$10', payUrl: '' },
       premium: { price: '$20', payUrl: '' },
       pro: { price: '$100', payUrl: '' },
     },
