@@ -83,7 +83,10 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
       );
     }
 
-    const { price, payUrl } = tierPrices[tier.id];
+    const { price } = tierPrices[tier.id];
+    // Своя ссылка у уровня перебивает общую: продукт в кассе один, но если
+    // однажды появится ссылка прямо на план, она и должна выиграть.
+    const payUrl = tierPrices[tier.id].payUrl || site.subscription.payUrl;
     const hasCheckout = isFilled(payUrl);
 
     return {
@@ -143,4 +146,5 @@ export const featuredTier = (segment?: string): ResolvedTier => {
 
 /** Заведена ли оплата хоть у одного уровня. */
 export const hasAnyCheckout = (): boolean =>
+  isFilled(site.subscription.payUrl) ||
   Object.values(tierPrices).some((tier) => isFilled(tier.payUrl));
