@@ -299,3 +299,94 @@ async def test_a_plain_direction_link_does_not_start_paying(quiet_store, paying_
     await bot_module.TelegramBot()._handle_start(paying_update, FakeContext(["son"]))
 
     assert not paying_update.message.invoices, "человек пришёл читать, а получил счёт"
+
+
+# --- варианты ответа кнопками -----------------------------------------------
+#
+# Написать ответ словами — работа: сформулировать, набрать, отправить. Нажать —
+# не работа. На этой разнице разговор либо продолжается, либо заканчивается, и
+# заканчивается он молча.
+
+
+@pytest.fixture
+def asking_model(monkeypatch):
+    """Модель задаёт вопрос с вариантами и помечает их."""
+
+    async def fake_completion(conversation):
+        return (
+            "Сон собирается из порядка, а не из одной вещи.\n\n"
+            "У тебя как с засыпанием?\n"
+            "@варианты: Засыпаю быстро | Лежу и не могу выключить голову"
+        )
+
+    monkeypatch.setattr(bot_module, "chat_completion", fake_completion)
+
+
+@pytest.mark.asyncio
+async def test_options_become_buttons(quiet_store, asking_model, no_video):
+    update = FakeUpdate(chat_id=3101)
+
+    await bot_module.TelegramBot()._answer(update, update.message, "плохо сплю")
+
+    reply = update.message.replies[-1]
+    labels = [row[0].text for row in reply["reply_markup"].inline_keyboard]
+    assert labels[:2] == ["Засыпаю быстро", "Лежу и не могу выключить голову"]
+
+
+@pytest.mark.asyncio
+async def test_the_marker_line_never_reaches_the_person(quiet_store, asking_model, no_video):
+    update = FakeUpdate(chat_id=3102)
+
+    await bot_module.TelegramBot()._answer(update, update.message, "плохо сплю")
+
+    assert "@варианты" not in update.message.replies[-1]["text"]
+
+
+@pytest.mark.asyncio
+async def test_the_way_out_is_always_last(quiet_store, asking_model, no_video):
+    """Вопрос может не подходить вовсе, и без выхода уйти можно только молча."""
+    update = FakeUpdate(chat_id=3103)
+
+    await bot_module.TelegramBot()._answer(update, update.message, "плохо сплю")
+
+    rows = update.message.replies[-1]["reply_markup"].inline_keyboard
+    assert rows[-1][0].callback_data == bot_module._CHOICE_OTHER
+    assert rows[-1][0].text == bot_module._CHOICE_OTHER_LABEL
+
+
+@pytest.mark.asyncio
+async def test_a_plain_answer_keeps_the_topic_buttons(quiet_store, captured_llm, no_video):
+    """Без вопроса-выбора под ответом остаются обычные темы направления."""
+    update = FakeUpdate(chat_id=3104)
+
+    await bot_module.TelegramBot()._handle_start(update, FakeContext(["zakalivanie"]))
+    await bot_module.TelegramBot()._answer(update, update.message, "как начать")
+
+    markup = update.message.replies[-1]["reply_markup"]
+    if markup is not None:
+        for row in markup.inline_keyboard:
+            assert not row[0].callback_data.startswith(bot_module._CHOICE_CALLBACK)
+
+
+@pytest.mark.asyncio
+async def test_clicking_an_option_answers_as_if_typed(quiet_store, asking_model, no_video):
+    bot = bot_module.TelegramBot()
+    update = FakeUpdate(chat_id=3105)
+    await bot._answer(update, update.message, "плохо сплю")
+
+    query = FakeQuery()
+    await bot._handle_choice_click(update, query, "3105", f"{bot_module._CHOICE_CALLBACK}1")
+
+    assert query.message.replies, "нажатие кнопки осталось без ответа"
+
+
+@pytest.mark.asyncio
+async def test_a_stale_button_says_so_instead_of_going_quiet(quiet_store, asking_model, no_video):
+    """После передеплоя список вариантов пуст. Молчащая кнопка — вид поломки."""
+    bot = bot_module.TelegramBot()
+    update = FakeUpdate(chat_id=3106)
+    query = FakeQuery()
+
+    await bot._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
+
+    assert query.message.replies, "кнопка от старого сообщения промолчала"

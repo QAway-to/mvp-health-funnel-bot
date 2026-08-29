@@ -16,6 +16,18 @@
 Пометить тиктоки как premium — лишить бота единственного, чем он может
 подкрепить свои слова до оплаты.
 
+ЗВУК. Ролики из TikTok обычно идут с музыкой, и в чате она не помогает: смысл
+в них показан, а не рассказан. Весь набор — без звука:
+
+    python tools/upload_clips.py папка --mute-all
+
+Поштучно — четвёртой частью строки `mute`:
+
+    IMG_1234.mp4 | #закаливание | Обливание на снегу | mute
+
+Ролик уйдёт без звука. Дорожка вырезается копированием картинки, без
+перекодирования: качество не меняется, занимает секунду.
+
 ПОДПИСЬ РЕШАЕТ ВСЁ. Бот подбирает ролик только по ней:
 
     #тег #ещёодин
@@ -30,6 +42,7 @@
 
     IMG_1234.mp4 | #закаливание #снег | Обливание на снегу
     IMG_1235.mp4 | #дыхание | Дыхание на морозе
+    IMG_1236.mp4 | #бокс | Работа по мешку | mute
 
 Дальше:
 
@@ -44,14 +57,17 @@
 не получает вовсе — ролики, залитые его же токеном, сами в библиотеку не
 попадут никогда:
 
-    GET /tasks/reindex?key=<TASKS_SECRET>&start=<первый>&end=<последний>
+    GET /tasks/reindex?key=<TASKS_SECRET>&from=<первый>&to=<последний>
 """
 
 import argparse
 import json
+import subprocess
 import sys
+import tempfile
 import time
-from dataclasses import dataclass
+from contextlib import contextmanager
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 import requests
@@ -70,9 +86,39 @@ class Clip:
     path: Path
     tags: str
     title: str
+    #: Заливать без звука. Не редкость: на части роликов музыка из TikTok или
+    #: посторонний шум, и в чате он мешает, а не помогает.
+    mute: bool = False
 
     def caption(self, tier: str) -> str:
         return f"{self.tags}\ntier: {tier}\n{self.title}"
+
+
+@contextmanager
+def without_sound(path: Path):
+    """Копия ролика без звуковой дорожки. Удаляется сразу после отправки.
+
+    `-c:v copy` — картинка переписывается байт в байт, без перекодирования:
+    ролик не теряет качества и не ждёт минуту на кодеке.
+    """
+    try:
+        import imageio_ffmpeg
+    except ImportError:
+        sys.exit("Для вырезания звука нужен ffmpeg:\n    pip install imageio-ffmpeg")
+
+    with tempfile.TemporaryDirectory() as folder:
+        target = Path(folder) / f"{path.stem}-mute.mp4"
+        result = subprocess.run(
+            [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-i", str(path),
+             "-c:v", "copy", "-an", str(target)],
+            capture_output=True,
+        )
+        if result.returncode != 0 or not target.is_file():
+            sys.exit(
+                f"Не вышло вырезать звук из {path.name}:\n"
+                + result.stderr.decode(errors="replace")[-400:]
+            )
+        yield target
 
 
 def read_env() -> tuple[str, str]:
@@ -109,10 +155,14 @@ def read_clips(folder: Path) -> list[Clip]:
         if not line or line.startswith("#!"):
             continue
         parts = [p.strip() for p in line.split("|")]
-        if len(parts) != 3:
-            problems.append(f"строка {number}: нужно три части через |")
+        if len(parts) not in (3, 4):
+            problems.append(f"строка {number}: нужно три части через | (или четыре с mute)")
             continue
-        name, tags, title = parts
+        name, tags, title = parts[:3]
+        flag = parts[3].lower() if len(parts) == 4 else ""
+        if flag not in ("", "mute"):
+            problems.append(f"строка {number}: четвёртой частью бывает только mute, а не {flag!r}")
+            continue
         if not tags.startswith("#"):
             problems.append(f"строка {number}: теги должны начинаться с #")
             continue
@@ -120,11 +170,17 @@ def read_clips(folder: Path) -> list[Clip]:
         if not path.is_file():
             problems.append(f"строка {number}: нет файла {name}")
             continue
-        clips.append(Clip(path=path, tags=tags, title=title))
+        clips.append(Clip(path=path, tags=tags, title=title, mute=flag == "mute"))
 
     if problems:
         sys.exit("\n".join(["Ролики не залиты — сначала поправьте:", *problems]))
     return clips
+
+
+@contextmanager
+def _as_is(path: Path):
+    """Ролик как есть — чтобы обе ветки отправки выглядели одинаково."""
+    yield path
 
 
 def main() -> None:
@@ -136,6 +192,11 @@ def main() -> None:
         default="free",
         help="free — публичные ролики из TikTok (по умолчанию); premium — шаги курса",
     )
+    parser.add_argument(
+        "--mute-all",
+        action="store_true",
+        help="залить все ролики без звука (перебивает отметки mute в captions.txt)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
 
@@ -144,13 +205,15 @@ def main() -> None:
         sys.exit(f"Нет папки {folder}")
 
     clips = read_clips(folder)
+    if args.mute_all:
+        clips = [replace(clip, mute=True) for clip in clips]
     sent_log = folder / SENT_FILE
     sent: dict[str, int] = json.loads(sent_log.read_text()) if sent_log.is_file() else {}
 
     if args.dry_run:
         for clip in clips:
             mark = "уже залит" if clip.path.name in sent else f"{clip.path.stat().st_size / 2**20:.1f} МБ"
-            print(f"{clip.path.name}  [{mark}]")
+            print(f"{clip.path.name}  [{mark}{', без звука' if clip.mute else ''}]")
             print("  " + clip.caption(args.tier).replace("\n", "\n  "))
         print(f"\nвсего: {len(clips)}, tier: {args.tier}")
         return
@@ -166,17 +229,18 @@ def main() -> None:
             posted.append(sent[name])
             continue
 
-        with clip.path.open("rb") as handle:
-            response = requests.post(
-                url,
-                data={
-                    "chat_id": channel,
-                    "caption": clip.caption(args.tier),
-                    "supports_streaming": True,
-                },
-                files={"video": (name, handle, "video/mp4")},
-                timeout=600,
-            )
+        with without_sound(clip.path) if clip.mute else _as_is(clip.path) as source:
+            with source.open("rb") as handle:
+                response = requests.post(
+                    url,
+                    data={
+                        "chat_id": channel,
+                        "caption": clip.caption(args.tier),
+                        "supports_streaming": True,
+                    },
+                    files={"video": (name, handle, "video/mp4")},
+                    timeout=600,
+                )
         payload = response.json()
         if not payload.get("ok"):
             print(f"[{index}/{len(clips)}] {name} — ОШИБКА: {payload}", flush=True)
@@ -192,7 +256,7 @@ def main() -> None:
     if posted:
         print(
             "\nГотово. Теперь переиндексация — без неё роликов для бота не существует:\n"
-            f"  /tasks/reindex?key=<TASKS_SECRET>&start={min(posted)}&end={max(posted)}"
+            f"  /tasks/reindex?key=<TASKS_SECRET>&from={min(posted)}&to={max(posted)}"
         )
 
 

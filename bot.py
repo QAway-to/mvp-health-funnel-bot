@@ -12,6 +12,7 @@ from telegram.error import Forbidden, TelegramError
 from config import config
 from utils.logger import log_agent_action
 from utils.llm import chat_completion
+from utils import choices
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
 from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
@@ -204,6 +205,12 @@ _GIFT_BUTTON = "🎁 Забрать чек-лист: 30 шагов"
 # номер, а не сама тема: в callback_data Telegram даёт 64 байта, и русская
 # подпись в UTF-8 съедает их вдвое быстрее латиницы.
 _TOPIC_CALLBACK = "t:"
+#: Кнопка-вариант ответа на вопрос бота: `c:<номер>`. В callback_data влезает
+#: 64 байта, а формулировки бывают длинными — поэтому номер, а не текст.
+_CHOICE_CALLBACK = "c:"
+#: Последний вариант в любом списке: выйти из этой ветки разговора.
+_CHOICE_OTHER = "c:other"
+_CHOICE_OTHER_LABEL = "Интересует другая тема"
 
 # Подпись под каждым сообщением бота. Кнопки удобны, но создают ощущение
 # анкеты: человек кликает и не догадывается, что можно просто спросить своими
@@ -372,6 +379,10 @@ class TelegramBot:
         self._library_task: "asyncio.Task | None" = None
         self._bootstrap_running = False
         self._update_tasks: set["asyncio.Task"] = set()
+        # Варианты, предложенные кнопками в последнем вопросе, по чатам.
+        # В памяти процесса: они живут ровно один ход разговора, и класть их
+        # в базу значило бы хранить то, что устареет раньше, чем понадобится.
+        self._choices: dict[str, tuple[str, ...]] = {}
         # chat_id -> conversation history for free chat
         self._conversations: dict[str, list[dict[str, str]]] = {}
 
@@ -566,7 +577,11 @@ class TelegramBot:
         # Клик — тоже активность: после него отсчёт тишины начинается заново.
         await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
 
-        if data.startswith(_STEP_CALLBACK):
+        if data == _CHOICE_OTHER:
+            await self._handle_choice_other(update, query, chat_id)
+        elif data.startswith(_CHOICE_CALLBACK):
+            await self._handle_choice_click(update, query, chat_id, data)
+        elif data.startswith(_STEP_CALLBACK):
             await self._handle_step_click(update, query, chat_id, data)
         elif data.startswith(_TOPIC_CALLBACK):
             await self._handle_topic_click(update, query, chat_id, data)
@@ -956,6 +971,55 @@ class TelegramBot:
         ][:_TOPICS_AFTER_ANSWER]
         return InlineKeyboardMarkup(rows) if rows else None
 
+    @staticmethod
+    def _choice_keyboard(options: tuple[str, ...]) -> InlineKeyboardMarkup:
+        """Варианты ответа плюс выход из ветки.
+
+        «Интересует другая тема» стоит всегда и последней: вопрос бота может
+        не подходить человеку вовсе, и без выхода единственным способом уйти
+        остаётся молчание — то есть уход насовсем.
+        """
+        rows = [
+            [InlineKeyboardButton(label, callback_data=f"{_CHOICE_CALLBACK}{index}")]
+            for index, label in enumerate(options)
+        ]
+        rows.append([InlineKeyboardButton(_CHOICE_OTHER_LABEL, callback_data=_CHOICE_OTHER)])
+        return InlineKeyboardMarkup(rows)
+
+    async def _handle_choice_click(self, update: Update, query, chat_id: str, data: str) -> None:
+        """Нажатый вариант — это ответ человека. Дальше обычный путь.
+
+        Список вариантов живёт в памяти процесса: после передеплоя кнопка от
+        старого сообщения ничего не найдёт. Тогда честно просим написать
+        словами — молчащая кнопка выглядит как поломка бота.
+        """
+        options = self._choices.get(chat_id, ())
+        index = data[len(_CHOICE_CALLBACK):]
+        if not index.isdigit() or int(index) >= len(options):
+            await query.message.reply_text(
+                with_hint("Этот вопрос уже позади. Напиши, что интересует, — отвечу."),
+                parse_mode="HTML",
+            )
+            return
+
+        answer = options[int(index)]
+        await store.event(chat_id, "choice_clicked", answer=answer)
+        await self._answer(update, query.message, answer)
+
+    async def _handle_choice_other(self, update: Update, query, chat_id: str) -> None:
+        """«Интересует другая тема» — назад к списку направлений."""
+        self._choices.pop(chat_id, None)
+        state = store.user(chat_id)
+        await store.event(chat_id, "choice_other", source=state.source)
+
+        greeting = welcome_for(_WELCOME, state.source)
+        keyboard = self._welcome_keyboard(greeting)
+        await query.message.reply_text(
+            with_hint("Хорошо, вернёмся к началу. С чего продолжим?"),
+            parse_mode="HTML",
+            reply_markup=keyboard,
+        )
+
     async def _handle_topic_click(self, update: Update, query, chat_id: str, data: str) -> None:
         """Клик по теме = вопрос по ней. Дальше обычный путь ответа.
 
@@ -1156,12 +1220,22 @@ class TelegramBot:
         # Кнопки под ответом — продолжение того же меню, что в приветствии.
         # Без них человек, кликнувший тему, дальше обязан печатать, и разговор
         # чаще всего заканчивается именно здесь.
-        topics = self._topics_keyboard(state.source, exclude=text)
+        # Бот спросил «или — или»? Тогда варианты идут кнопками: написать
+        # ответ словами — работа, нажать — нет, и на этой разнице разговор
+        # либо продолжается, либо заканчивается.
+        reply, options = choices.extract(reply)
+        if options:
+            self._choices[chat_id] = options
+            keyboard = self._choice_keyboard(options)
+        else:
+            self._choices.pop(chat_id, None)
+            keyboard = self._topics_keyboard(state.source, exclude=text)
+
         try:
-            await message.reply_text(with_hint(reply), parse_mode="HTML", reply_markup=topics)
+            await message.reply_text(with_hint(reply), parse_mode="HTML", reply_markup=keyboard)
         except TelegramError:
             try:
-                await message.reply_text(with_hint(reply), reply_markup=topics)
+                await message.reply_text(with_hint(reply), reply_markup=keyboard)
             except TelegramError as e:
                 log_agent_action("Telegram", f"Failed to send reply: {e}", level="ERROR")
 
