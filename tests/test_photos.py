@@ -48,3 +48,21 @@ def test_cache_ignores_empty_values():
     cache.remember("mountain.jpg", "")
     cache.remember("", "FILE_ID")
     assert len(cache) == 0
+
+
+def test_every_photo_in_welcome_resolves():
+    """Каждое имя из welcome.txt должно находиться файлом.
+
+    Опечатка в имени не падает, а тихо уходит в Telegram как file_id и
+    возвращается «Wrong file identifier» — в лог, который никто не читает.
+    Здесь она падает сразу.
+    """
+    welcome = Path(__file__).resolve().parents[1] / "prompts" / "welcome.txt"
+    names = [
+        line.split(":", 1)[1].strip()
+        for line in welcome.read_text(encoding="utf-8").splitlines()
+        if line.startswith("photo:")
+    ]
+    assert names, "в приветствиях не осталось ни одной картинки"
+    for name in names:
+        assert photos.photo_path(name) is not None, f"нет файла {name}"

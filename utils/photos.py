@@ -20,7 +20,16 @@ from pathlib import Path
 
 #: Картинки лежат вместе с картинками сайта: одна и та же фотография на
 #: странице направления и в приветствии — это узнавание, а не экономия.
-PHOTO_DIR = Path(__file__).resolve().parents[1] / "site" / "public" / "img"
+#:
+#: Берём именно из сборки, а не из исходников: Dockerfile выбрасывает
+#: `site/` целиком и кладёт обратно только `dist`. Путь к `site/public`
+#: работал бы у меня на машине и не существовал бы в проде — то есть ровно
+#: там, где это нужно.
+_ROOT = Path(__file__).resolve().parents[1] / "site"
+PHOTO_DIR = _ROOT / "dist" / "img"
+
+#: Исходники — запасной вариант для запуска без сборки (тесты, локальный бот).
+_FALLBACK_DIR = _ROOT / "public" / "img"
 
 
 def photo_path(value: str) -> Path | None:
@@ -32,8 +41,11 @@ def photo_path(value: str) -> Path | None:
     name = (value or "").strip()
     if not name or "/" in name or "\\" in name:
         return None
-    path = PHOTO_DIR / name
-    return path if path.is_file() else None
+    for folder in (PHOTO_DIR, _FALLBACK_DIR):
+        path = folder / name
+        if path.is_file():
+            return path
+    return None
 
 
 class PhotoCache:
