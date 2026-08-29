@@ -423,7 +423,7 @@ async def test_a_tier_link_shows_the_ways_to_pay(quiet_store, paying_update, mon
     labels = [row[0].text for row in markup.inline_keyboard]
     assert any("вёзд" in label for label in labels)
     assert any("артой" in label for label in labels)
-    assert any("подробнее" in label.lower() for label in labels), "нет выхода из покупки"
+    assert any("уровни" in label.lower() for label in labels), "нет выхода из покупки"
 
 
 @pytest.mark.asyncio

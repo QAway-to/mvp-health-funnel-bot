@@ -19,6 +19,7 @@ from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
+from utils.plan_cards import card_for, load_cards, price_in
 from utils.purchase import email_in
 from utils import lavatop, stars
 from utils.telegram_html import has_markdown, plain_text, to_telegram_html
@@ -359,6 +360,9 @@ _PLANS = stars.without_mismatched(_DECLARED_PLANS, config.STARS_PER_DOLLAR)
 #: file_id картинок приветствия, полученные этим ботом. Пустой при запуске:
 #: чужие идентификаторы для него не существуют.
 _PHOTOS = PhotoCache()
+
+#: Карточки ступеней: что человек читает перед оплатой.
+_PLAN_CARDS = load_cards()
 
 #: Идентификатор цены в кассе для каждой ступени. Пустой — ступень оплатой
 #: картой не закрывается и уходит на витрину.
@@ -1572,19 +1576,41 @@ class TelegramBot:
             ]
             for way in ways
         ]
-        rows.append([InlineKeyboardButton("Сначала расскажи подробнее", callback_data="offer")])
+        rows.append([InlineKeyboardButton("Сравнить уровни", callback_data="offer")])
         try:
             await message.reply_text(
-                with_hint(
-                    f"<b>{plan.title}</b>" + "\n\n"
-                    "Доступ открывается сразу после оплаты — все шесть направлений. "
-                    "Как удобнее заплатить?"
-                ),
+                with_hint(self._plan_card(plan) + "\n\n" + "Как удобнее заплатить?"),
                 parse_mode="HTML",
+                disable_web_page_preview=True,
                 reply_markup=InlineKeyboardMarkup(rows),
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to offer payment ways: {e}", level="ERROR")
+
+    @staticmethod
+    def _plan_card(plan: Plan) -> str:
+        """Что человек читает перед оплатой.
+
+        Первое сообщение после лендинга не может состоять из цены и вопроса
+        «как заплатить»: нажавший цену на сайте ещё не обязательно решил — он
+        нажал, чтобы узнать. Карточка отвечает, что это, что даёт эта ступень
+        и чем отличаются соседние: сама по себе цена не значит ничего,
+        значение ей придаёт цена рядом.
+        """
+        card = card_for(_PLAN_CARDS, plan.action, price_in(plan.label))
+        if card:
+            return card
+
+        # Карточки нет — говорим хотя бы то, что знаем наверняка. Скупое
+        # сообщение здесь лучше пустого.
+        log_agent_action(
+            "Offer", f"Нет карточки ступени {plan.action} в plan_cards.txt", level="WARNING"
+        )
+        return (
+            f"<b>{plan.title}</b>" + "\n\n"
+            "Доступ ко всем шести направлениям сразу, 68 шагов по порядку. "
+            "Открывается сразу после оплаты."
+        )
 
     @staticmethod
     def _payment_ways(plan: Plan) -> tuple[str, ...]:
