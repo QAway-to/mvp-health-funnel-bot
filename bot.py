@@ -1582,11 +1582,28 @@ class TelegramBot:
             return
 
         progress = await update.message.reply_text(f"⏳ Сканирую {start_id}–{end_id}...")
+        count = await self.reindex_range(str(update.effective_chat.id), start_id, end_id)
+        await progress.edit_text(
+            f"✅ Проиндексировано роликов: {count}. Всего в библиотеке: {len(library)}"
+        )
+
+    async def reindex_range(self, via_chat: str, start_id: int, end_id: int) -> int:
+        """Пересобрать индекс по диапазону постов канала.
+
+        Bot API не умеет читать историю канала, поэтому каждый пост
+        пересылается в чат `via_chat` — это единственный способ увидеть
+        подпись, — и сразу удаляется.
+
+        Отдельным методом, а не внутри команды: тем же кодом пользуется
+        служебный маршрут. Своих постов бот в `channel_post` не получает
+        вовсе, поэтому после загрузки роликов его же токеном переиндексация —
+        не запасной путь, а единственный.
+        """
         found: list[ContentItem] = []
         for message_id in range(start_id, end_id + 1):
             try:
                 forwarded = await self._app.bot.forward_message(
-                    chat_id=update.effective_chat.id,
+                    chat_id=via_chat,
                     from_chat_id=config.CONTENT_CHANNEL_ID,
                     message_id=message_id,
                 )
@@ -1596,14 +1613,13 @@ class TelegramBot:
                 found.append(parse_caption(forwarded.caption, message_id))
             try:
                 await self._app.bot.delete_message(
-                    chat_id=update.effective_chat.id, message_id=forwarded.message_id
+                    chat_id=via_chat, message_id=forwarded.message_id
                 )
             except TelegramError:
                 pass
             await asyncio.sleep(_REINDEX_PAUSE)
 
-        count = await library.upsert_many(found)
-        await progress.edit_text(f"✅ Проиндексировано роликов: {count}. Всего в библиотеке: {len(library)}")
+        return await library.upsert_many(found)
 
     async def _handle_migrate_legacy(self, update: Update, context) -> None:
         """Перелить ролики из старых file_id в канал — без перезаливки файлов."""

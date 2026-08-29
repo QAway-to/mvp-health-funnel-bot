@@ -16,6 +16,10 @@ from bot import telegram_bot
 from config import config
 from utils import site
 from utils.content_library import library
+
+
+def library_size() -> int:
+    return len(library)
 from utils.funnel_store import store
 from utils.logger import get_recent_logs, log_agent_action
 
@@ -102,6 +106,41 @@ async def telegram_webhook(request: Request):
     if not accepted:
         raise HTTPException(status_code=403, detail="bad secret")
     return {"ok": True}
+
+
+@app.api_route("/tasks/reindex", methods=["GET", "POST"])
+async def run_reindex(request: Request):
+    """Пересобрать индекс роликов по диапазону постов канала.
+
+    Зачем маршрут, если есть команда /reindex: своих постов бот в
+    `channel_post` не получает вовсе. Ролики, загруженные его же токеном,
+    сами в библиотеку не попадут никогда, и переиндексация после заливки —
+    не запасной путь, а единственный.
+
+    Защита та же, что у рассылки: без TASKS_SECRET маршрут выключен.
+    """
+    if not config.TASKS_SECRET:
+        raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
+
+    provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
+    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+        log_agent_action("App", "Переиндексация с неверным ключом отклонена", level="WARNING")
+        raise HTTPException(status_code=403, detail="bad secret")
+
+    if not config.ADMIN_CHAT_ID:
+        # Пересылать посты некуда: без этого подпись не прочитать.
+        raise HTTPException(status_code=503, detail="ADMIN_CHAT_ID not set")
+
+    try:
+        start_id = int(request.query_params.get("from", "1"))
+        end_id = int(request.query_params.get("to", "0"))
+    except ValueError:
+        raise HTTPException(status_code=400, detail="from/to must be integers")
+    if end_id < start_id:
+        raise HTTPException(status_code=400, detail="to must not be less than from")
+
+    count = await telegram_bot.reindex_range(str(config.ADMIN_CHAT_ID), start_id, end_id)
+    return {"ok": True, "indexed": count, "library": library_size()}
 
 
 @app.get("/{url_path:path}")

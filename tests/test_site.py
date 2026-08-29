@@ -34,7 +34,14 @@ def test_bot_routes_are_registered_before_the_catch_all():
 
     paths = [getattr(r, "path", "") for r in main.app.routes]
     catch_all = paths.index("/{url_path:path}")
-    for path in ("/health", "/debug", "/tasks/followups", main.telegram_bot.WEBHOOK_PATH):
+    bot_paths = (
+        "/health",
+        "/debug",
+        "/tasks/followups",
+        "/tasks/reindex",
+        main.telegram_bot.WEBHOOK_PATH,
+    )
+    for path in bot_paths:
         assert paths.index(path) < catch_all, f"{path} перехватывается сайтом"
 
 
