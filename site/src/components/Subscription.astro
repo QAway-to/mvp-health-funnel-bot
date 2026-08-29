@@ -63,16 +63,46 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
                 ))}
               </ul>
 
+              {/* Кнопка открывает выбор способа оплаты, а не ведёт сразу в
+                  кассу: дверей две — карта и звёзды, — и человек должен
+                  увидеть обе. Уводить сразу в одну значит выбрать за него. */}
               {tier.hasCheckout && (
-                <Cta
-                  kind={tier.kind}
-                  href={tier.href}
-                  placement={`price_${tier.id}`}
-                  size="md"
-                  class:list={['tier__cta', !featured && 'tier__cta--outline']}
+                <button
+                  type="button"
+                  class:list={[
+                    'btn',
+                    'btn--primary',
+                    'btn--md',
+                    'tier__cta',
+                    !featured && 'tier__cta--outline',
+                  ]}
+                  data-pay-open={tier.id}
+                  data-cta={`price_${tier.id}`}
                 >
                   {tier.ctaLabel}
-                </Cta>
+                </button>
+              )}
+
+              {tier.hasCheckout && (
+                <dialog class="pay" data-pay-dialog={tier.id} aria-labelledby={`pay-title-${tier.id}`}>
+                  <div class="pay__inner">
+                    <p class="pay__kicker">{tier.label}{tier.priceLabel && ` · ${tier.priceLabel}`}</p>
+                    <h3 class="pay__title" id={`pay-title-${tier.id}`}>Как удобнее оплатить?</h3>
+                    <p class="pay__lead">Доступ один и тот же — отличается только способ оплаты.</p>
+
+                    <a class="btn btn--primary btn--md pay__option" href={tier.href} data-cta={`pay_card_${tier.id}`}>
+                      Картой на LavaTop
+                    </a>
+                    <p class="pay__note">Обычная оплата картой. Подписка, отменить можно в любой момент.</p>
+
+                    <a class="btn btn--ghost btn--md pay__option" href={tier.starsHref} data-cta={`pay_stars_${tier.id}`}>
+                      {tier.starsLabel}
+                    </a>
+                    <p class="pay__note">Оплата внутри чата: карту вводить не нужно, нужны звёзды Telegram.</p>
+
+                    <button type="button" class="pay__close" data-pay-close>Закрыть</button>
+                  </div>
+                </dialog>
               )}
             </article>
           );
@@ -137,7 +167,111 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
   </div>
 </section>
 
+<script>
+  /**
+   * Поп-ап выбора оплаты.
+   *
+   * Нативный <dialog> вместо своей реализации: showModal() сам даёт закрытие
+   * по Esc, ловушку фокуса и подложку. Своё пришлось бы писать втрое длиннее
+   * и всё равно хуже для клавиатуры.
+   */
+  document.querySelectorAll<HTMLElement>('[data-pay-open]').forEach((trigger) => {
+    const id = trigger.dataset.payOpen;
+    const dialog = document.querySelector<HTMLDialogElement>(`[data-pay-dialog="${id}"]`);
+    if (!dialog) return;
+
+    trigger.addEventListener('click', () => dialog.showModal());
+
+    /* Клик по подложке закрывает: цель события — сам dialog только тогда,
+       когда попали мимо его содержимого. */
+    dialog.addEventListener('click', (event) => {
+      if (event.target === dialog) dialog.close();
+    });
+
+    dialog.querySelector<HTMLElement>('[data-pay-close]')?.addEventListener('click', () => {
+      dialog.close();
+    });
+  });
+</script>
+
 <style>
+  /* --- поп-ап выбора оплаты ------------------------------------------- */
+
+  .pay {
+    border: 1px solid var(--border-soft);
+    background: var(--card-secondary);
+    color: var(--text);
+    padding: 0;
+    max-width: 420px;
+    width: calc(100% - 32px);
+  }
+
+  .pay::backdrop {
+    background: rgba(12, 12, 12, 0.72);
+  }
+
+  .pay__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 28px;
+  }
+
+  .pay__kicker {
+    font-size: 14px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .pay__title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    letter-spacing: -0.02em;
+  }
+
+  .pay__lead {
+    font-size: 15px;
+    line-height: 1.5;
+    color: var(--text-lead);
+    margin-bottom: 6px;
+  }
+
+  .pay__option {
+    display: block;
+    width: 100%;
+    text-align: center;
+  }
+
+  /* Подпись под каждым способом: человек выбирает не кнопку, а условия.
+     Прижата к своей кнопке, чтобы не путалась со следующей. */
+  .pay__note {
+    font-size: 13px;
+    line-height: 1.45;
+    color: var(--text-muted);
+    margin: -2px 0 8px;
+  }
+
+  .pay__close {
+    align-self: center;
+    margin-top: 4px;
+    padding: 6px 10px;
+    border: 0;
+    background: none;
+    font: inherit;
+    font-size: 14px;
+    color: var(--text-muted);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    cursor: pointer;
+  }
+
+  .pay__close:hover {
+    color: var(--text);
+  }
+
   .subscription__lead {
     font-size: 19px;
     line-height: 1.6;

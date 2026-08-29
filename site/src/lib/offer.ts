@@ -40,6 +40,12 @@ export interface ResolvedTier extends SubscriptionTier {
   readonly kind: 'sales' | 'primary';
   readonly ctaLabel: string;
   readonly hasCheckout: boolean;
+  /**
+   * Вторая дверь к тому же доступу: оплата звёздами внутри Telegram.
+   * Пусто — второй двери нет, и поп-ап не нужен.
+   */
+  readonly starsHref: string;
+  readonly starsLabel: string;
 }
 
 const priceLabelFor = (price: string): string => {
@@ -87,6 +93,28 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
       href: hasCheckout ? payHref(payUrl, segment) : startUrl(segment),
       kind: hasCheckout ? 'sales' : 'primary',
       ctaLabel: hasCheckout ? tier.ctaLabel : 'Первый шаг бесплатно',
+      /**
+       * Второй способ оплаты: звёздами внутри Telegram.
+       *
+       * Дверей две, и они не равнозначны по удобству для разных людей.
+       * Картой платят те, у кого её достаточно; звёздами — те, кто живёт в
+       * Telegram и не хочет вводить карту на чужом сайте. Показывать только
+       * одну — значит терять вторую половину.
+       *
+       * Ведёт в бота с меткой направления: там человек выбирает ступень и
+       * платит, не выходя из чата. Появляется только рядом с оплатой картой —
+       * пока её нет, обе кнопки вели бы в одно и то же место.
+       */
+      /**
+       * Дверей две, и они не равнозначны для разных людей. Картой платят те,
+       * у кого она под рукой; звёздами — те, кто живёт в Telegram и не хочет
+       * вводить карту на чужом сайте. Показывать одну — терять вторых.
+       *
+       * Появляется только рядом с оплатой картой: пока её нет, обе кнопки
+       * вели бы в одно и то же место, и выбор был бы ненастоящим.
+       */
+      starsHref: hasCheckout ? startUrl(segment) : '',
+      starsLabel: 'Звёздами в Telegram',
     };
   });
 
