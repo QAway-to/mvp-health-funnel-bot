@@ -7,6 +7,21 @@ from utils.logger import log_agent_action
 DEEPSEEK_URL = "https://api.deepseek.com/chat/completions"
 
 
+def _for_api(messages: list[dict]) -> list[dict]:
+    """Оставить только то, что понимает API.
+
+    Бот держит в истории свои пометки — например, какое сообщение относится
+    к этапу воронки и снимается на следующем ходу. Провайдеру эти ключи не
+    нужны, а строгий провайдер на неизвестном поле откажет целиком. Решать,
+    что уходит в запрос, должен тот, кто его отправляет.
+    """
+    return [
+        {"role": item["role"], "content": item["content"]}
+        for item in messages
+        if item.get("role") and item.get("content")
+    ]
+
+
 async def chat_completion(messages: list[dict], timeout: int = 60) -> str:
     if not config.DEEPSEEK_API_KEY:
         log_agent_action("DeepSeek", "API key not configured", level="WARNING")
@@ -20,7 +35,7 @@ async def chat_completion(messages: list[dict], timeout: int = 60) -> str:
                     "Authorization": f"Bearer {config.DEEPSEEK_API_KEY}",
                     "Content-Type": "application/json",
                 },
-                json={"model": config.DEEPSEEK_MODEL, "messages": messages},
+                json={"model": config.DEEPSEEK_MODEL, "messages": _for_api(messages)},
                 timeout=aiohttp.ClientTimeout(total=timeout),
             ) as resp:
                 if resp.status != 200:

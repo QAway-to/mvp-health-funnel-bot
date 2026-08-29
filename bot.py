@@ -16,6 +16,7 @@ from utils import choices
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
 from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
+from utils.funnel_stages import load_stages, offer_due, stage_for
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
@@ -360,6 +361,11 @@ _PLANS = stars.without_mismatched(_DECLARED_PLANS, config.STARS_PER_DOLLAR)
 #: file_id картинок приветствия, полученные этим ботом. Пустой при запуске:
 #: чужие идентификаторы для него не существуют.
 _PHOTOS = PhotoCache()
+
+#: Что делать на каждом ходу разговора. Без этого модель задаёт
+#: уточняющие вопросы бесконечно: плохого сообщения нет ни одного,
+#: плохая только сумма.
+_FUNNEL_STAGES = load_stages()
 
 #: Карточки ступеней: что человек читает перед оплатой.
 _PLAN_CARDS = load_cards()
@@ -1239,6 +1245,18 @@ class TelegramBot:
             self._conversations.pop(next(iter(self._conversations)))
 
         conv = self._conversations[chat_id]
+
+        # Где мы в разговоре. Указание живёт ровно один ход: старое снимаем,
+        # новое ставим. Накопившись, они противоречили бы друг другу — «задай
+        # вопрос» и «вопросов больше не задавай» подряд, — и модель слушалась
+        # бы последнего в лучшем случае.
+        conv[:] = [item for item in conv if not item.get("stage")]
+        stage = stage_for(
+            _FUNNEL_STAGES, message_number=state.messages, is_premium=is_premium
+        )
+        if stage:
+            conv.append({"role": "system", "content": stage, "stage": True})
+
         conv.append({"role": "user", "content": text})
 
         thinking_msg = None
@@ -1294,11 +1312,18 @@ class TelegramBot:
         # Порог сдвигается с каждым показом, поэтому второй оффер приходит не
         # сразу за первым, а через разговор. Отдельное поле для этого не нужно:
         # cta_shown и так хранится.
+        # Ход оффера задан в самих указаниях (prompts/funnel_stages.txt), а не
+        # числом здесь: два места с «на четвёртом» разъедутся, и промпт будет
+        # обещать предложение на одном ходу, а кнопка появится на другом.
+        #
+        # Повторный показ — по старому правилу: через разговор, не подряд.
+        first_time = offer_due(_FUNNEL_STAGES, message_number=state.messages)
+        repeat = state.cta_shown and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
         show_cta = (
             _OFFER.is_ready
             and not is_premium
             and state.cta_shown < _CTA_MAX_TIMES
-            and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
+            and (first_time or repeat)
         )
 
         try:
