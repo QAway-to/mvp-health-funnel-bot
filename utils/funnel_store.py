@@ -63,6 +63,10 @@ class UserState:
     # запросе, что и всё остальное.
     course: str = ""
     step: int = 0
+    # Почта, которой человек платит на стороне кассы. Держим, потому что это
+    # единственное, что знают обе стороны: в боте человек — chat_id, в кассе —
+    # адрес почты, и связать их больше нечем.
+    email: str = ""
 
     def to_row(self) -> dict[str, Any]:
         return {
@@ -78,6 +82,7 @@ class UserState:
             "followups_sent": self.followups_sent,
             "course": self.course,
             "step": self.step,
+            "email": self.email,
         }
 
     @staticmethod
@@ -102,6 +107,7 @@ class UserState:
             followups_sent=_as_int(row.get("followups_sent")),
             course=str(row.get("course") or ""),
             step=_as_int(row.get("step")),
+            email=str(row.get("email") or ""),
         )
 
 

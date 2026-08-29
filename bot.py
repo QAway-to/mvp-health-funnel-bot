@@ -18,7 +18,8 @@ from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
-from utils import stars
+from utils.purchase import email_in
+from utils import lavatop, stars
 from utils.telegram_html import has_markdown, to_telegram_html
 from utils.steps import course_for, load_courses
 from utils.testimonials import load_testimonials, pick as pick_testimonial
@@ -328,6 +329,14 @@ _PLANS = stars.without_mismatched(_DECLARED_PLANS, config.STARS_PER_DOLLAR)
 #: file_id картинок приветствия, полученные этим ботом. Пустой при запуске:
 #: чужие идентификаторы для него не существуют.
 _PHOTOS = PhotoCache()
+
+#: Идентификатор цены в кассе для каждой ступени. Пустой — ступень оплатой
+#: картой не закрывается и уходит на витрину.
+_LAVA_OFFERS = {
+    "buy_base": config.LAVATOP_OFFER_BASE,
+    "buy_premium": config.LAVATOP_OFFER_PREMIUM,
+    "buy_pro": config.LAVATOP_OFFER_PRO,
+}
 
 def _default_plan() -> "Plan | None":
     """Ступень для команды /buy: рекомендуемая, иначе первая продаваемая."""
@@ -988,7 +997,62 @@ class TelegramBot:
         """Free-form chat with LLM."""
         if not update.message or not update.message.text:
             return
-        await self._answer(update, update.message, update.message.text.strip())
+        text = update.message.text.strip()
+
+        # Адрес почты в реплике — не вопрос к модели, а либо «вот чем я
+        # плачу», либо «я уже заплатил, вот чем». Разбираем до LLM: модель
+        # ответила бы про здоровье и потеряла бы платёж.
+        address = email_in(text)
+        if address and await self._handle_email(update.message, str(update.effective_chat.id), address):
+            return
+
+        await self._answer(update, update.message, text)
+
+    async def _handle_email(self, message, chat_id: str, address: str) -> bool:
+        """Запомнить почту и, если по ней уже платили, открыть доступ.
+
+        Возвращает True, если сообщение обработано здесь и модели не нужно.
+
+        Проверяем у кассы, а не верим на слово: иначе доступ выпишет себе
+        любой, кто назовёт чужой адрес или выдумает его. И наоборот — человек,
+        заплативший на витрине, иначе остался бы без доступа, потому что там
+        его `chat_id` взять неоткуда: почта — единственное, что знают обе
+        стороны.
+        """
+        state = store.user(chat_id)
+        if state.email != address:
+            state = replace(state, email=address)
+            await store.save(state)
+
+        if state.is_premium:
+            await message.reply_text(
+                with_hint("Записал почту. Доступ у тебя и так открыт."), parse_mode="HTML"
+            )
+            return True
+
+        paid = False
+        if config.LAVA_API_KEY:
+            try:
+                paid = await lavatop.has_paid(config.LAVA_API_KEY, address)
+            except lavatop.LavaError as e:
+                log_agent_action("Lava", f"Проверка оплаты не удалась: {e}", level="ERROR")
+
+        if paid:
+            await self._grant_premium(chat_id, "lavatop_email")
+            await message.reply_text(_PREMIUM_UNLOCKED_TEXT, parse_mode="HTML")
+            return True
+
+        await message.reply_text(
+            with_hint(
+                "Записал почту." + "\n\n"
+                "Оплаты по ней пока не вижу. Если только что заплатил — доступ "
+                "откроется сам через минуту. Если ещё нет — выбери уровень, "
+                "и я пришлю ссылку."
+            ),
+            parse_mode="HTML",
+            reply_markup=self._plans_keyboard(),
+        )
+        return True
 
     async def _answer(self, update: Update, message, text: str) -> None:
         """Ответ модели на вопрос — набранный руками или выбранный кнопкой.
@@ -1238,11 +1302,24 @@ class TelegramBot:
         """
 
         def sellable(plan: Plan) -> bool:
-            # Либо цена в звёздах и включённая касса, либо внешняя страница,
-            # которая принимает любую ступень.
-            return bool(plan.stars and config.PAYMENTS_ENABLED) or bool(_OFFER.purchase_url)
+            # Три двери, и любой одной достаточно: звёзды внутри Telegram,
+            # счёт в кассе по ключу API, внешняя страница как запасной путь.
+            by_stars = bool(plan.stars and config.PAYMENTS_ENABLED)
+            by_card = bool(config.LAVA_API_KEY and _LAVA_OFFERS.get(plan.action))
+            return by_stars or by_card or bool(_OFFER.purchase_url)
 
         return tuple(plan for plan in _PLANS if sellable(plan))
+
+    def _plans_keyboard(self) -> "InlineKeyboardMarkup | None":
+        """Кнопки ступеней — тем же способом, что и в блоке «что входит».
+
+        Отдельная сборка разошлась бы с той: у человека появились бы две
+        разные витрины в одном чате.
+        """
+        plans = self._sellable_plans()
+        if not plans:
+            return None
+        return self._keyboard(tuple(CtaButton(plan.action, plan.label) for plan in plans))
 
     async def _handle_offer_click(self, query, chat_id: str) -> None:
         """Клик по «что входит» — состав и ступени, а не сразу счёт.
@@ -1309,6 +1386,20 @@ class TelegramBot:
                 await store.event(chat_id, "invoice_sent", plan=plan.action, bucket=state.bucket)
             return
 
+        # Оплата картой. Счёт выставляем сами, а не отправляем на витрину:
+        # витрина не знает, кто пришёл, и платёж потом не с кем связать.
+        # Для счёта нужна почта — на неё касса шлёт чек, и по ней же мы
+        # узнаём покупателя, если метка не вернётся.
+        offer_id = _LAVA_OFFERS.get(plan.action, "")
+        if config.LAVA_API_KEY and offer_id:
+            if not state.email:
+                await self._ask_for_email(message, plan)
+                return
+            if await self._send_invoice_link(message, chat_id, state.email, plan, offer_id):
+                return
+            # Касса не ответила — уводим на витрину, чтобы человек всё же мог
+            # заплатить. Доступ тогда выдаётся по почте, см. _handle_email.
+
         if not _OFFER.purchase_url:
             await message.reply_text(
                 "Эту ступень пока нельзя оплатить в чате. Напиши мне — договоримся."
@@ -1320,10 +1411,69 @@ class TelegramBot:
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Перейти к оплате", url=url)]])
         try:
             await message.reply_text(
-                f"{plan.title} — вот страница с оплатой:", reply_markup=keyboard
+                with_hint(
+                    f"{plan.title} — вот страница с оплатой." + "\n\n"
+                    "После оплаты пришли сюда почту, которой платил, — открою доступ."
+                ),
+                parse_mode="HTML",
+                reply_markup=keyboard,
             )
         except TelegramError as e:
             log_agent_action("Telegram", f"Failed to send purchase link: {e}", level="ERROR")
+
+    @staticmethod
+    async def _ask_for_email(message, plan: Plan) -> None:
+        """Спросить почту перед выставлением счёта.
+
+        Один вопрос вместо формы: касса требует адрес для чека, и он же потом
+        связывает платёж с этим чатом.
+        """
+        try:
+            await message.reply_text(
+                with_hint(
+                    f"{plan.title}." + "\n\n"
+                    "Пришли почту — на неё придёт чек, и туда же вышлю ссылку на оплату. "
+                    "Просто напиши её следующим сообщением."
+                ),
+                parse_mode="HTML",
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to ask for email: {e}", level="ERROR")
+
+    async def _send_invoice_link(
+        self, message, chat_id: str, email: str, plan: Plan, offer_id: str
+    ) -> bool:
+        """Выставить счёт в кассе и прислать кнопку оплаты."""
+        try:
+            invoice = await lavatop.create_invoice(
+                config.LAVA_API_KEY,
+                email=email,
+                offer_id=offer_id,
+                chat_id=chat_id,
+                currency=config.LAVATOP_CURRENCY,
+            )
+        except lavatop.LavaError as e:
+            log_agent_action("Lava", f"Счёт не выставлен: {e}", level="ERROR")
+            return False
+
+        keyboard = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("Оплатить картой", url=invoice.payment_url)]]
+        )
+        try:
+            await message.reply_text(
+                with_hint(
+                    f"{plan.title} — ссылка на оплату готова." + "\n\n"
+                    "Доступ откроется сам, как только платёж пройдёт."
+                ),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to send invoice link: {e}", level="ERROR")
+            return False
+
+        await store.event(chat_id, "invoice_created", plan=plan.action)
+        return True
 
     # ------------------------------------------------------------------
     # Библиотека роликов (приватный канал)

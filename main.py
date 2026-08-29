@@ -311,15 +311,33 @@ async def lavatop_payment(request: Request):
     except ValueError:
         raise HTTPException(status_code=400, detail="body must be json")
 
-    # Целиком и до разбора: это единственный способ узнать настоящий формат.
+    # Целиком и до разбора: дешевле один раз посмотреть, чем гадать.
     log_agent_action("Payments", f"LavaTop прислал: {payload}")
+
+    # Уведомление приходит и на неудачную оплату — тем же адресом, с тем же
+    # покупателем, отличаясь только статусом. Раньше здесь статус не
+    # проверялся вовсе: `payment.failed` открывал доступ ровно так же, как
+    # успешная оплата.
+    if not _is_paid(payload):
+        log_agent_action(
+            "Payments",
+            f"Уведомление не об оплате — доступ не выдаём: "
+            f"{payload.get('eventType')} / {payload.get('status')}",
+        )
+        return {"ok": True, "granted": False, "reason": "not a completed payment"}
 
     chat_id = _buyer_chat_id(payload)
     if not chat_id:
+        # Заплатили на витрине, а не по счёту из бота: метки там взяться
+        # неоткуда. Остаётся почта — единственное, что знают обе стороны.
+        chat_id = _chat_by_email(payload)
+
+    if not chat_id:
         log_agent_action(
             "Payments",
-            "В уведомлении нет chat_id покупателя — доступ выдать некому. "
-            "Ссылка оплаты должна нести идентификатор, см. lavatop-products.md",
+            "Не понять, кому выдать доступ: ни метки чата, ни знакомой почты. "
+            f"Почта покупателя: {_buyer_email(payload) or '—'}. Человек напишет "
+            "её боту сам — тогда доступ откроется по сверке с кассой.",
             level="ERROR",
         )
         # 200, а не ошибка: LavaTop иначе будет ретраить бесконечно, а платёж
@@ -330,15 +348,63 @@ async def lavatop_payment(request: Request):
     return {"ok": True, "granted": True}
 
 
+#: Событие и статус успешной оплаты. Подписка присылает своё событие на
+#: каждое списание — доступ надо продлевать по каждому.
+_PAID_EVENTS = {
+    "payment.success",
+    "subscription.recurring.payment.success",
+}
+
+
+def _is_paid(payload: dict) -> bool:
+    """Это уведомление об успешно прошедшей оплате?
+
+    Проверяем и событие, и статус: событие говорит, что произошло, статус —
+    чем кончилось, и совпасть они обязаны оба.
+    """
+    if not isinstance(payload, dict):
+        return False
+    event = str(payload.get("eventType") or "").strip().lower()
+    status = str(payload.get("status") or "").strip().lower()
+    if event and event not in _PAID_EVENTS:
+        return False
+    if status and status not in ("completed", "active", "subscription-active"):
+        return False
+    # Пустые оба — формат не тот, что в спецификации. Молча выдавать доступ
+    # по неизвестному уведомлению нельзя.
+    return bool(event or status)
+
+
+def _buyer_email(payload: dict) -> str:
+    buyer = payload.get("buyer") if isinstance(payload, dict) else None
+    if isinstance(buyer, dict):
+        return str(buyer.get("email") or "").strip().lower()
+    return ""
+
+
+def _chat_by_email(payload: dict) -> str:
+    """Чат по почте покупателя — если он называл её боту раньше."""
+    email = _buyer_email(payload)
+    if not email:
+        return ""
+    for state in store.all_users():
+        if state.email and state.email.strip().lower() == email:
+            return state.chat_id
+    return ""
+
+
 def _buyer_chat_id(payload: dict) -> str:
     """Найти идентификатор покупателя в теле уведомления.
 
-    Мест несколько, потому что формат не сверен. Порядок — от самого явного к
-    наименее: сначала то, что мы сами положили в ссылку оплаты.
+    Первым делом — метка, которую бот сам положил в счёт: касса возвращает
+    `clientUtm` как есть, и это самый надёжный путь. Остальные места
+    остались с тех пор, когда формат уведомления не был сверен.
     """
     if not isinstance(payload, dict):
         return ""
+    utm = payload.get("clientUtm")
     candidates = [
+        utm.get("utm_content") if isinstance(utm, dict) else None,
         payload.get("client_id"),
         payload.get("clientId"),
         payload.get("custom"),

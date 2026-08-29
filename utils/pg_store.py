@@ -37,13 +37,15 @@ CREATE TABLE IF NOT EXISTS funnel_users (
     last_seen_at   TEXT    NOT NULL DEFAULT '',
     followups_sent INTEGER NOT NULL DEFAULT 0,
     course         TEXT    NOT NULL DEFAULT '',
-    step           INTEGER NOT NULL DEFAULT 0
+    step           INTEGER NOT NULL DEFAULT 0,
+    email          TEXT    NOT NULL DEFAULT ''
 );
 
 -- Колонки курса добавлены позже схемы, а база у заказчика уже с данными:
 -- CREATE TABLE IF NOT EXISTS на существующей таблице их не создаст.
 ALTER TABLE funnel_users ADD COLUMN IF NOT EXISTS course TEXT    NOT NULL DEFAULT '';
 ALTER TABLE funnel_users ADD COLUMN IF NOT EXISTS step   INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE funnel_users ADD COLUMN IF NOT EXISTS email  TEXT    NOT NULL DEFAULT '';
 
 CREATE TABLE IF NOT EXISTS funnel_events (
     id      BIGSERIAL PRIMARY KEY,
@@ -61,8 +63,8 @@ _UPSERT = """
 INSERT INTO funnel_users (
     chat_id, bucket, is_premium, messages, cta_shown,
     source, seen_content, created_at, last_seen_at, followups_sent,
-    course, step
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+    course, step, email
+) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
 ON CONFLICT (chat_id) DO UPDATE SET
     bucket         = EXCLUDED.bucket,
     is_premium     = EXCLUDED.is_premium,
@@ -74,7 +76,8 @@ ON CONFLICT (chat_id) DO UPDATE SET
     last_seen_at   = EXCLUDED.last_seen_at,
     followups_sent = EXCLUDED.followups_sent,
     course         = EXCLUDED.course,
-    step           = EXCLUDED.step
+    step           = EXCLUDED.step,
+    email          = EXCLUDED.email
 """
 
 _INSERT_EVENT = """
@@ -232,6 +235,7 @@ class PostgresStore(CachedStore):
             state.followups_sent,
             state.course,
             state.step,
+            state.email,
         )
 
     async def _write(self, users: list[UserState], events: list[dict[str, Any]]) -> bool:

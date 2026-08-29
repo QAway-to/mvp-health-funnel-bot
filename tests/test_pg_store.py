@@ -69,6 +69,7 @@ def test_user_params_match_the_insert_order():
         followups_sent=1,
         course="zakalivanie",
         step=3,
+        email="buyer@example.com",
     )
 
     assert PostgresStore._user_params(state) == (
@@ -84,6 +85,7 @@ def test_user_params_match_the_insert_order():
         1,
         "zakalivanie",    # где человек в пошаговом курсе
         3,
+        "buyer@example.com",  # чем платёж в кассе связывается с чатом
     )
 
 

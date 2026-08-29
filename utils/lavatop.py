@@ -16,8 +16,11 @@
   update existing offers». Поэтому правка одного оффера начинается с чтения
   остальных — иначе два плана из трёх исчезли бы с витрины.
 
-То есть автоматизировать можно ровно одно: названия офферов, их описания и
-цены. Это и делается здесь.
+Зато можно выставить счёт (`POST /api/v3/invoice`) и прочитать продажи
+(`GET /api/v1/sales/`) — на этих двух и держится выдача доступа.
+
+То есть автоматизировать можно: названия офферов, их описания, цены, счета и
+сверку оплат. Это и делается здесь.
 
 Спецификация: https://gate.lava.top/docs/documentation.yaml
 """
@@ -37,6 +40,14 @@ CURRENCIES = ("RUB", "USD", "EUR")
 
 class LavaError(RuntimeError):
     """Касса ответила не так, как ожидалось. Наверх идёт с текстом ответа."""
+
+
+@dataclass(frozen=True)
+class Invoice:
+    """Выставленный счёт: по какой ссылке платить и как узнать этот платёж."""
+
+    contract_id: str
+    payment_url: str
 
 
 @dataclass(frozen=True)
@@ -202,3 +213,86 @@ async def update_offer(
         "Lava", f"Оффер {offer_id} обновлён у продукта {product_id}; всего офферов: {len(offers)}"
     )
     return response.json()
+
+
+async def create_invoice(
+    api_key: str,
+    *,
+    email: str,
+    offer_id: str,
+    chat_id: str,
+    currency: str = "USD",
+    periodicity: str = "MONTHLY",
+) -> Invoice:
+    """Выставить счёт и получить ссылку на оплату.
+
+    ЗАЧЕМ ЭТО ВМЕСТО ССЫЛКИ НА ВИТРИНУ. Витрина не знает, кто пришёл: человек
+    платит на странице кассы, а доступ выдаётся в Telegram, и связать одно с
+    другим нечем. Счёт, выставленный отсюда, знает: `chat_id` уезжает в
+    `clientUtm` и возвращается в уведомлении об оплате — касса присылает
+    `clientUtm` обратно как есть. Ничего хранить не нужно.
+
+    `utm_content` выбран не случайно: остальные поля утекают в аналитику
+    рекламных кабинетов, а это — свободное.
+
+    E-mail обязателен: на него касса шлёт чек. Он же второй способ узнать
+    покупателя, если `clientUtm` почему-то не вернётся.
+    """
+    body = {
+        "email": email,
+        "offerId": offer_id,
+        "currency": currency,
+        "periodicity": periodicity,
+        "clientUtm": {"utm_source": "telegram", "utm_content": chat_id},
+    }
+    async with httpx.AsyncClient(timeout=30) as client:
+        response = await client.post(
+            f"{BASE_URL}/api/v3/invoice", headers=_headers(api_key), json=body
+        )
+    if response.status_code >= 400:
+        raise LavaError(f"{response.status_code}: {response.text[:300]}")
+
+    data = response.json()
+    invoice = Invoice(
+        contract_id=str(data.get("id") or ""),
+        payment_url=str(data.get("paymentUrl") or ""),
+    )
+    if not invoice.payment_url:
+        raise LavaError(f"касса не вернула ссылку оплаты: {str(data)[:200]}")
+    log_agent_action("Lava", f"Счёт {invoice.contract_id} выставлен для чата {chat_id}")
+    return invoice
+
+
+async def has_paid(api_key: str, email: str, *, pages: int = 5) -> bool:
+    """Есть ли у этой почты оплаченная покупка.
+
+    Нужно для тех, кто заплатил на витрине, а не по счёту из бота: там
+    `clientUtm` взять неоткуда, и единственное, что знают обе стороны, —
+    почта. Человек называет её боту, бот спрашивает кассу.
+
+    Спрашивать кассу, а не верить на слово: иначе доступ открывается любому,
+    кто назовёт чужой адрес или просто выдумает его.
+    """
+    wanted = email.strip().lower()
+    if not wanted:
+        return False
+
+    async with httpx.AsyncClient(timeout=30) as client:
+        for page in range(pages):
+            response = await client.get(
+                f"{BASE_URL}/api/v1/sales/",
+                headers=_headers(api_key),
+                params={"page": page, "size": 100},
+            )
+            if response.status_code != 200:
+                raise LavaError(f"{response.status_code}: {response.text[:300]}")
+            payload = response.json()
+            for product in payload.get("items") or []:
+                for sale in (product or {}).get("sales") or []:
+                    buyer = sale.get("buyer") if isinstance(sale, dict) else None
+                    found = (buyer or {}).get("email") if isinstance(buyer, dict) else None
+                    if str(found or "").strip().lower() == wanted:
+                        return True
+            if page + 1 >= int(payload.get("totalPages") or 1):
+                break
+    return False
