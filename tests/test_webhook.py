@@ -70,3 +70,105 @@ async def test_update_processing_is_backgrounded_and_referenced(bot, monkeypatch
     for task in list(bot._update_tasks):
         await task
     assert processed == [{"update_id": 7}]
+
+
+# --- порядок обработки апдейтов ---------------------------------------------
+#
+# Баг выглядел так: человек жмёт несколько кнопок, ответы приходят вперемешку,
+# каждый живёт полторы секунды и сменяется следующим. Причина — каждый апдейт
+# уходил в свою задачу, и обработчики шли параллельно: ставили «⏳», ждали
+# модель, удаляли свой «⏳» и слали ролик с текстом, кто когда успел.
+#
+# Незаметное было хуже видимого: обработчик читает состояние, ждёт модель и
+# пишет состояние обратно. Параллельные затирали счётчики друг друга, а на них
+# держится вся воронка.
+
+
+class _Chat:
+    def __init__(self, chat_id):
+        self.id = chat_id
+
+
+class _Update:
+    def __init__(self, update_id, chat_id):
+        self.update_id = update_id
+        self.effective_chat = _Chat(chat_id) if chat_id is not None else None
+
+
+@pytest.fixture
+def ordered_bot(bot, monkeypatch):
+    """Приложение, которое записывает порядок и умеет притормаживать."""
+    import asyncio
+
+    order = []
+
+    class FakeApp:
+        bot = object()
+        delay = {}
+
+        async def process_update(self, update):
+            order.append(("начал", update.update_id))
+            await asyncio.sleep(self.delay.get(update.update_id, 0))
+            order.append(("кончил", update.update_id))
+
+    monkeypatch.setattr(
+        bot_module.Update, "de_json",
+        staticmethod(lambda data, b: _Update(data["update_id"], data.get("chat"))),
+    )
+    bot._app = FakeApp()
+    return bot, FakeApp, order
+
+
+async def _drain(bot):
+    for task in list(bot._update_tasks):
+        await task
+
+
+@pytest.mark.asyncio
+async def test_updates_of_one_chat_do_not_overlap(ordered_bot):
+    """Первый должен закончиться раньше, чем начнётся второй."""
+    bot, app, order = ordered_bot
+    app.delay = {1: 0.05}
+
+    await bot.handle_webhook({"update_id": 1, "chat": 100}, "s3cret")
+    await bot.handle_webhook({"update_id": 2, "chat": 100}, "s3cret")
+    await _drain(bot)
+
+    assert order == [("начал", 1), ("кончил", 1), ("начал", 2), ("кончил", 2)]
+
+
+@pytest.mark.asyncio
+async def test_different_chats_are_not_made_to_wait(ordered_bot):
+    """Замок на чат, а не на бота: чужая очередь не должна тормозить всех."""
+    bot, app, order = ordered_bot
+    app.delay = {1: 0.05}
+
+    await bot.handle_webhook({"update_id": 1, "chat": 100}, "s3cret")
+    await bot.handle_webhook({"update_id": 2, "chat": 200}, "s3cret")
+    await _drain(bot)
+
+    assert order[:2] == [("начал", 1), ("начал", 2)], "второй чат ждал первого"
+
+
+@pytest.mark.asyncio
+async def test_locks_do_not_pile_up(ordered_bot):
+    """Иначе словарь растёт на каждого написавшего и не уменьшается никогда."""
+    bot, _, _ = ordered_bot
+
+    for number in range(5):
+        await bot.handle_webhook({"update_id": number, "chat": number}, "s3cret")
+    await _drain(bot)
+
+    assert bot._chat_locks == {}
+    assert bot._chat_waiting == {}
+
+
+@pytest.mark.asyncio
+async def test_an_update_without_a_chat_still_goes_through(ordered_bot):
+    """Правки постов и инлайн-запросы приходят без чата — это не ошибка."""
+    bot, _, order = ordered_bot
+
+    await bot.handle_webhook({"update_id": 9, "chat": None}, "s3cret")
+    await _drain(bot)
+
+    assert ("кончил", 9) in order

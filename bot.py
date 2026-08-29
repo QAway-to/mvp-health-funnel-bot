@@ -412,6 +412,11 @@ class TelegramBot:
         self._library_task: "asyncio.Task | None" = None
         self._bootstrap_running = False
         self._update_tasks: set["asyncio.Task"] = set()
+        # Очередь на чат: апдейты одного человека идут по одному. Держим
+        # только те замки, которых кто-то ждёт, — иначе словарь растёт на
+        # каждого написавшего и не уменьшается.
+        self._chat_locks: dict[str, "asyncio.Lock"] = {}
+        self._chat_waiting: dict[str, int] = {}
         # Варианты, предложенные кнопками в последнем вопросе, по чатам.
         # В памяти процесса: они живут ровно один ход разговора, и класть их
         # в базу значило бы хранить то, что устареет раньше, чем понадобится.
@@ -427,9 +432,10 @@ class TelegramBot:
             log_agent_action("Telegram", "Bot token not configured — disabled")
             return
         try:
-            # concurrent_updates=False задан явно: обработчики читают состояние
-            # пользователя, потом уходят в await к LLM и сохраняют его обратно —
-            # параллельная обработка апдейтов одного чата затрёт счётчики.
+            # concurrent_updates=False — для режима опроса, где очередь
+            # библиотеки и решает порядок. В режиме вебхука порядок держит
+            # _process_in_order: там мы зовём process_update сами, и эта
+            # настройка до него не достаёт.
             self._app = (
                 Application.builder()
                 .token(config.TELEGRAM_BOT_TOKEN)
@@ -585,11 +591,51 @@ class TelegramBot:
         if update is None:
             return True
 
-        task = asyncio.create_task(self._app.process_update(update))
+        task = asyncio.create_task(self._process_in_order(update))
         # Ссылку держим: без неё GC вправе убить обработку на первом await.
         self._update_tasks.add(task)
         task.add_done_callback(self._update_tasks.discard)
         return True
+
+    async def _process_in_order(self, update: Update) -> None:
+        """Обработать апдейт, дождавшись предыдущего апдейта этого же чата.
+
+        ЗАЧЕМ. `concurrent_updates(False)` выше обещает, что апдейты не
+        обрабатываются параллельно, — и в режиме вебхука это обещание не
+        выполнялось: очередь библиотеки работает при опросе, а здесь мы сами
+        зовём `process_update` в отдельной задаче на каждый апдейт. Нажатия
+        подряд шли параллельно.
+
+        Видно это было так: человек жмёт несколько кнопок, каждый обработчик
+        ставит «⏳», уходит в LLM, возвращается в своё время, удаляет свой
+        «⏳» и шлёт ролик с текстом. Сообщения появлялись вперемешку и на
+        секунду-полторы, экран дёргался. Хуже незаметное: каждый обработчик
+        читает состояние, ждёт модель и пишет состояние обратно — параллельные
+        просто затирали счётчики друг друга, а на них держится вся воронка.
+
+        Замок на чат, а не на бота: разные люди по-прежнему обслуживаются
+        одновременно, ждёт только тот, кто нажал дважды.
+        """
+        # getattr, а не точка: сюда приходит то, что разобралось из чужого
+        # JSON, и апдейт без чата — обычное дело (правки постов, инлайн).
+        chat = getattr(update, "effective_chat", None)
+        if chat is None:
+            await self._app.process_update(update)
+            return
+
+        key = str(chat.id)
+        lock = self._chat_locks.setdefault(key, asyncio.Lock())
+        self._chat_waiting[key] = self._chat_waiting.get(key, 0) + 1
+        try:
+            async with lock:
+                await self._app.process_update(update)
+        finally:
+            self._chat_waiting[key] -= 1
+            # Замок живёт, пока есть кому ждать. Иначе словарь растёт на
+            # каждого, кто когда-либо написал, и не уменьшается никогда.
+            if self._chat_waiting[key] <= 0:
+                self._chat_waiting.pop(key, None)
+                self._chat_locks.pop(key, None)
 
     async def stop(self) -> None:
         if self._app:
