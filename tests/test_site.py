@@ -40,6 +40,7 @@ def test_bot_routes_are_registered_before_the_catch_all():
         "/tasks/followups",
         "/tasks/reindex",
         "/payments/lavatop",
+        "/tasks/lavatop",
         main.telegram_bot.WEBHOOK_PATH,
     )
     for path in bot_paths:

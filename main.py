@@ -14,7 +14,7 @@ from fastapi import FastAPI, HTTPException, Request
 
 from bot import telegram_bot
 from config import config
-from utils import site
+from utils import lavatop, site
 from utils.content_library import library
 
 
@@ -141,6 +141,63 @@ async def run_reindex(request: Request):
 
     count = await telegram_bot.reindex_range(str(config.ADMIN_CHAT_ID), start_id, end_id)
     return {"ok": True, "indexed": count, "library": library_size()}
+
+
+@app.api_route("/tasks/lavatop", methods=["GET", "POST"])
+async def lavatop_cabinet(request: Request):
+    """Прочитать кабинет LavaTop или переписать оффер.
+
+    Ключ живёт в переменных сервиса, поэтому к кассе ходит сервис, а не
+    чья-то машина: секрет не покидает Render.
+
+    `action=list` — только чтение: что уже заведено, с идентификаторами
+    продуктов и офферов. С них начинается любая правка, потому что создавать
+    продукты их API не умеет — карточки заводятся руками в кабинете.
+
+    `action=update` — переписать один оффер: `product`, `offer`, и любое из
+    `name`, `description`, `price_rub`, `price_usd`, `price_eur`.
+    """
+    if not config.TASKS_SECRET:
+        raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
+    provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
+    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+        raise HTTPException(status_code=403, detail="bad secret")
+    if not config.LAVA_API_KEY:
+        raise HTTPException(status_code=503, detail="LAVA_API not set")
+
+    action = request.query_params.get("action", "list")
+    try:
+        if action == "list":
+            products = await lavatop.list_products(config.LAVA_API_KEY)
+            return {"ok": True, "count": len(products), "products": [p.brief() for p in products]}
+
+        if action == "update":
+            product_id = request.query_params.get("product", "")
+            offer_id = request.query_params.get("offer", "")
+            if not product_id or not offer_id:
+                raise HTTPException(status_code=400, detail="product and offer are required")
+
+            prices = {
+                currency: float(request.query_params[key])
+                for currency, key in (("RUB", "price_rub"), ("USD", "price_usd"), ("EUR", "price_eur"))
+                if request.query_params.get(key)
+            }
+            result = await lavatop.update_offer(
+                config.LAVA_API_KEY,
+                product_id,
+                offer_id,
+                name=request.query_params.get("name"),
+                description=request.query_params.get("description"),
+                prices=prices or None,
+            )
+            return {"ok": True, "product": result.get("title"), "offers": result.get("offers")}
+    except lavatop.LavaError as e:
+        # Ошибку кассы отдаём как есть: угадывать её причину дороже, чем
+        # прочитать.
+        log_agent_action("Lava", f"Касса отказала: {e}", level="ERROR")
+        raise HTTPException(status_code=502, detail=str(e))
+
+    raise HTTPException(status_code=400, detail="action must be list or update")
 
 
 @app.post("/payments/lavatop")
