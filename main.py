@@ -5,6 +5,8 @@
 отвечает с задержкой на холодный старт, а не пропадает.
 """
 
+import base64
+import binascii
 import os
 import secrets
 from contextlib import asynccontextmanager
@@ -36,6 +38,22 @@ app = FastAPI(title="Health Funnel Bot", lifespan=lifespan)
 
 log_agent_action("App", "🚀 Бот запускается")
 site.log_state()
+
+
+def _secret_matches(provided: str, expected: str) -> bool:
+    """Совпал ли присланный секрет с нашим.
+
+    Сравниваем байты, а не строки: `compare_digest` на строках с не-ASCII
+    бросает TypeError, и один заголовок с кириллицей превращал отказ в
+    пятисотку — посреди приёма платежа, где ошибка сервера означает, что
+    касса будет ретраить, а мы каждый раз падать.
+
+    Постоянное время сравнения нужно по-прежнему: обычное `==` заканчивается
+    на первом несовпавшем байте, и по времени ответа секрет подбирается.
+    """
+    if not provided or not expected:
+        return False
+    return secrets.compare_digest(provided.encode("utf-8"), expected.encode("utf-8"))
 
 
 @app.get("/health")
@@ -86,7 +104,7 @@ async def run_followups(request: Request):
         raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
 
     provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
-    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+    if not _secret_matches(provided, config.TASKS_SECRET):
         log_agent_action("App", "Запуск рассылки с неверным ключом отклонён", level="WARNING")
         raise HTTPException(status_code=403, detail="bad secret")
 
@@ -127,7 +145,7 @@ async def inspect_library(request: Request):
     if not config.TASKS_SECRET:
         raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
     provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
-    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+    if not _secret_matches(provided, config.TASKS_SECRET):
         raise HTTPException(status_code=403, detail="bad secret")
 
     chat_id = request.query_params.get("chat", "")
@@ -197,7 +215,7 @@ async def run_reindex(request: Request):
         raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
 
     provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
-    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+    if not _secret_matches(provided, config.TASKS_SECRET):
         log_agent_action("App", "Переиндексация с неверным ключом отклонена", level="WARNING")
         raise HTTPException(status_code=403, detail="bad secret")
 
@@ -234,7 +252,7 @@ async def lavatop_cabinet(request: Request):
     if not config.TASKS_SECRET:
         raise HTTPException(status_code=503, detail="TASKS_SECRET not set")
     provided = request.headers.get("X-Tasks-Secret") or request.query_params.get("key", "")
-    if not secrets.compare_digest(provided, config.TASKS_SECRET):
+    if not _secret_matches(provided, config.TASKS_SECRET):
         raise HTTPException(status_code=403, detail="bad secret")
     if not config.LAVA_API_KEY:
         raise HTTPException(status_code=503, detail="LAVA_API not set")
@@ -297,12 +315,7 @@ async def lavatop_payment(request: Request):
     if not config.LAVATOP_SECRET:
         raise HTTPException(status_code=503, detail="LAVATOP_SECRET not set")
 
-    provided = (
-        request.headers.get("X-Api-Key")
-        or request.headers.get("X-Signature")
-        or request.query_params.get("key", "")
-    )
-    if not secrets.compare_digest(provided, config.LAVATOP_SECRET):
+    if not _webhook_is_ours(request):
         log_agent_action("Payments", "Уведомление LavaTop с неверным ключом", level="WARNING")
         raise HTTPException(status_code=403, detail="bad secret")
 
@@ -346,6 +359,43 @@ async def lavatop_payment(request: Request):
 
     await telegram_bot.grant_premium(chat_id, "lavatop", payload=str(payload)[:500])
     return {"ok": True, "granted": True}
+
+
+def _webhook_is_ours(request: Request) -> bool:
+    """Уведомление действительно от кассы?
+
+    Касса подписывает вебхуки одним из двух способов — так сказано в её
+    спецификации, и какой из них окажется в кабинете, заранее не известно:
+
+    * `X-Api-Key: <секрет>` — ровно наш секрет заголовком;
+    * HTTP Basic — логин и пароль, склеенные через двоеточие.
+
+    Поддерживаем оба, иначе настройка упрётся в то, какой вариант касса
+    предложит в форме. Для Basic принимаем и «логин:пароль» целиком, и один
+    пароль: в форме бывает и то и другое поле, а угадывать, что человек
+    записал в переменную, дороже, чем принять оба.
+
+    Само сравнение — в `_secret_matches`.
+    """
+    secret = config.LAVATOP_SECRET or ""
+
+    candidates = [
+        request.headers.get("X-Api-Key") or "",
+        request.headers.get("X-Signature") or "",
+        request.query_params.get("key", ""),
+    ]
+
+    authorization = request.headers.get("Authorization") or ""
+    if authorization.lower().startswith("basic "):
+        try:
+            pair = base64.b64decode(authorization[6:].strip()).decode("utf-8", "replace")
+        except (ValueError, binascii.Error):
+            pair = ""
+        if pair:
+            candidates.append(pair)
+            candidates.append(pair.partition(":")[2])
+
+    return any(_secret_matches(value, secret) for value in candidates)
 
 
 #: Событие и статус успешной оплаты. Подписка присылает своё событие на

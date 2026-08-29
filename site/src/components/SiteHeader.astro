@@ -321,11 +321,18 @@ const insideDirections = openDirections.some((d) => d.href === here);
     }
   }
 
-  @media (max-width: 480px) {
+  @media (max-width: 560px) {
     .header__brand {
-      font-size: 15px;
+      font-size: 13px;
+      letter-spacing: 0.02em;
+      line-height: 1.15;
       min-width: 0;
-      overflow-wrap: anywhere;
+      /* Переносить только между словами. С `anywhere` на узком экране от
+         «здоровья» отрывалась одна буква и уезжала вниз — строка выглядела
+         сломанной, а не перенесённой. Кнопку это больше не выталкивает:
+         меню уехало под бургер, и в строке остались только двое. */
+      overflow-wrap: normal;
+      hyphens: none;
     }
 
     .header__burger-label {
