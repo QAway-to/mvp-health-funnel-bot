@@ -13,6 +13,7 @@ from config import config
 from utils.logger import log_agent_action
 from utils.llm import chat_completion
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
+from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
@@ -691,8 +692,12 @@ class TelegramBot:
             return
 
         chat_id = str(update.effective_chat.id)
-        # Deep link: t.me/<bot>?start=tiktok -> источник трафика
-        source = (context.args[0] if getattr(context, "args", None) else "")[:40]
+        # Deep link: t.me/<bot>?start=tiktok -> источник трафика.
+        # Метка бывает составной — `buy_base__son`: с лендинга ведёт кнопка
+        # «Звёздами в Telegram», стоящая рядом с конкретным уровнем.
+        payload = (context.args[0] if getattr(context, "args", None) else "")[:64]
+        plan_action, source = parse_start_payload(payload, frozenset(_PLAN_STARS))
+        source = source[:40]
         state = store.user(chat_id, source=source)
         if source and not state.source:
             state = replace(state, source=source)
@@ -735,6 +740,13 @@ class TelegramBot:
         # Пришёл по ссылке из рекламы или поста — отдаём подарок сразу, без клика
         if source.lower() in _GIFT_START_ARGS:
             await self._send_gift(update.message, chat_id)
+
+        # Пришёл с лендинга по кнопке уровня — сразу к оплате. Приветствие
+        # выше всё равно нужно: человек впервые открыл чат, и счёт без единого
+        # слова выглядит как ошибка. Но выбирать уровень заново он не будет.
+        plan = next((p for p in _PLANS if p.action == plan_action), None)
+        if plan:
+            await self._start_payment(update.message, chat_id, plan)
 
     @staticmethod
     def _welcome_keyboard(greeting) -> InlineKeyboardMarkup | None:
@@ -1251,17 +1263,27 @@ class TelegramBot:
         await store.event(chat_id, "offer_details_shown", bucket=state.bucket, plans=len(plans))
 
     async def _handle_plan_click(self, query, chat_id: str, plan: Plan) -> None:
-        """Выбрана ступень — отсюда и только отсюда начинается оплата."""
+        """Выбрана ступень кнопкой в чате."""
+        await self._start_payment(query.message, chat_id, plan)
+
+    async def _start_payment(self, message, chat_id: str, plan: Plan) -> None:
+        """Ступень выбрана — отсюда и только отсюда начинается оплата.
+
+        Принимает сообщение, а не callback: тем же путём идёт человек,
+        пришедший по ссылке «Звёздами в Telegram» с лендинга. Уровень он там
+        уже выбрал, и предлагать ему тот же выбор второй раз — верный способ
+        потерять его между сайтом и чатом.
+        """
         state = store.user(chat_id)
         await store.event(chat_id, "plan_clicked", plan=plan.action, bucket=state.bucket)
 
         if config.PAYMENTS_ENABLED and plan.stars:
-            if await self._send_invoice(query.message, plan):
+            if await self._send_invoice(message, plan):
                 await store.event(chat_id, "invoice_sent", plan=plan.action, bucket=state.bucket)
             return
 
         if not _OFFER.purchase_url:
-            await query.message.reply_text(
+            await message.reply_text(
                 "Эту ступень пока нельзя оплатить в чате. Напиши мне — договоримся."
             )
             return
@@ -1270,7 +1292,7 @@ class TelegramBot:
         url = f"{_OFFER.purchase_url}{separator}uid={chat_id}&plan={plan.action}"
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Перейти к оплате", url=url)]])
         try:
-            await query.message.reply_text(
+            await message.reply_text(
                 f"{plan.title} — вот страница с оплатой:", reply_markup=keyboard
             )
         except TelegramError as e:

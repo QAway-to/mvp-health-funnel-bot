@@ -231,3 +231,71 @@ async def test_typed_message_and_button_share_one_path(
     await bot_module.TelegramBot()._handle_topic_click(clicked, query, "2", "t:son:0")
 
     assert captured_llm[0][0]["content"] == captured_llm[1][0]["content"]
+
+
+# --- /start по кнопке уровня с лендинга -------------------------------------
+#
+# На лендинге в поп-апе есть вторая дверь — «Звёздами в Telegram». До этого она
+# вела на общую страницу входа, одинаковую для всех трёх уровней: человек
+# выбирал тариф на сайте и попадал туда, где надо выбирать заново. Метка
+# уровня едет в deep link именно поэтому.
+
+
+class _InvoiceMessage(FakeMessage):
+    """Сообщение, умеющее принять счёт, — счета шлются отдельным методом."""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.invoices: list[dict] = []
+
+    async def reply_invoice(self, **kwargs):
+        self.invoices.append(kwargs)
+
+
+@pytest.fixture
+def paying_update(monkeypatch):
+    """Оплата включена, сообщение принимает счёт."""
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+    update = FakeUpdate(chat_id=2101)
+    update.message = _InvoiceMessage()
+    return update
+
+
+@pytest.mark.asyncio
+async def test_tier_link_goes_straight_to_the_invoice(quiet_store, paying_update):
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_premium__son"])
+    )
+
+    invoices = paying_update.message.invoices
+    assert invoices, "человек выбрал уровень на сайте и не получил счёт"
+    assert "$20" in invoices[0]["title"]
+
+
+@pytest.mark.asyncio
+async def test_the_greeting_still_comes_first(quiet_store, paying_update):
+    """Счёт без единого слова в пустом чате читается как ошибка."""
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_premium__son"])
+    )
+
+    assert paying_update.message.replies, "счёт пришёл в пустой чат"
+
+
+@pytest.mark.asyncio
+async def test_the_direction_survives_the_tier_label(quiet_store, paying_update):
+    """Метка составная — направление в ней не должно потеряться."""
+    await bot_module.TelegramBot()._handle_start(
+        paying_update, FakeContext(["buy_base__son"])
+    )
+
+    greeting = paying_update.message.replies[0]["text"].lower()
+    assert "сон" in greeting or "спать" in greeting or "выспа" in greeting
+
+
+@pytest.mark.asyncio
+async def test_a_plain_direction_link_does_not_start_paying(quiet_store, paying_update):
+    """Старые ссылки ведут в разговор, а не в кассу."""
+    await bot_module.TelegramBot()._handle_start(paying_update, FakeContext(["son"]))
+
+    assert not paying_update.message.invoices, "человек пришёл читать, а получил счёт"

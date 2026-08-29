@@ -47,13 +47,41 @@ export const startUrl = (segment?: string): string =>
   isLeadSegment(segment) ? `${routes.start}?s=${segment}` : routes.start;
 
 /**
+ * Уровни подписки, которые бот умеет открыть сразу по ссылке.
+ *
+ * Список закрытый по той же причине, что и сегменты: значение уезжает в
+ * чужой домен и возвращается боту как команда к оплате. Совпадает с ключами
+ * `subscription.tiers` — расходиться им нельзя, иначе кнопка ведёт в бота, а
+ * тот показывает выбор уровня заново.
+ */
+export const TIER_IDS = ['base', 'premium', 'pro'] as const;
+
+export type TierId = (typeof TIER_IDS)[number];
+
+export const isTierId = (value: unknown): value is TierId =>
+  typeof value === 'string' && (TIER_IDS as readonly string[]).includes(value);
+
+/** Разделитель уровня и сегмента в метке. Должен совпадать с utils/deeplink.py. */
+const PAYLOAD_SEPARATOR = '__';
+
+/**
  * Deep link в Telegram-бота.
  *
  * Существующие параметры адреса отбрасываются: у бота параметр ровно один —
  * `start`, и второй `?start=` в хвосте Telegram просто не прочитает.
+ *
+ * С `tier` метка становится составной — `buy_premium__son`. Уровень человек
+ * выбрал на лендинге, и донести этот выбор до чата важнее, чем сохранить
+ * простоту метки: иначе он выбирает второй раз то же самое, а на втором
+ * выборе часть людей уходит.
+ *
+ * Разделитель двойной: дефис уже занят внутри сегментов
+ * (`vrednye-privychki`), а Telegram пропускает в метке только буквы, цифры,
+ * дефис и подчёркивание.
  */
-export const botUrl = (base: string, segment?: string): string => {
+export const botUrl = (base: string, segment?: string, tier?: string): string => {
   const clean = base.split('?')[0].split('#')[0];
-  const payload = isLeadSegment(segment) ? segment : DEFAULT_SEGMENT;
+  const label = isLeadSegment(segment) ? segment : DEFAULT_SEGMENT;
+  const payload = isTierId(tier) ? `buy_${tier}${PAYLOAD_SEPARATOR}${label}` : label;
   return `${clean}?start=${payload}`;
 };

@@ -14,7 +14,7 @@
 import { site } from '../config/site';
 import { subscriptionContent } from '../content/subscription';
 import type { SubscriptionTier } from '../content/types';
-import { isLeadSegment, startUrl } from './leadLink';
+import { botUrl, isLeadSegment, startUrl } from './leadLink';
 
 /**
  * Заполнено ли поле конфига.
@@ -116,7 +116,10 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
        * Появляется только рядом с оплатой картой: пока её нет, обе кнопки
        * вели бы в одно и то же место, и выбор был бы ненастоящим.
        */
-      starsHref: hasCheckout ? startUrl(segment) : '',
+      starsHref:
+        hasCheckout && isFilled(site.lead.telegramUrl)
+          ? botUrl(site.lead.telegramUrl, segment, tier.id)
+          : '',
       starsLabel: 'Звёздами в Telegram',
     };
   });
