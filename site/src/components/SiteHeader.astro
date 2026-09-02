@@ -3,6 +3,8 @@ import Cta from './Cta.astro';
 import { routes } from '../config/site';
 import { directions } from '../content/directions';
 import { startUrl } from '../lib/leadLink';
+import { langFromUrl, switchLang, type Lang } from '../i18n';
+import { useTranslations } from '../i18n/ui';
 import type { NavLink } from '../content/types';
 
 /**
@@ -38,11 +40,27 @@ const isHome = here === routes.home;
 /** В списке — только открытые направления со своей страницей. */
 const openDirections = directions.filter((d) => d.status === 'live' && d.href);
 const insideDirections = openDirections.some((d) => d.href === here);
+
+/**
+ * Язык страницы и ссылка на другой.
+ *
+ * Переключатель стоит на всех страницах, включая непереведённые: со страницы
+ * направления он ведёт на английскую главную. Пропадающий переключатель хуже
+ * ведущего в более общее место — человек решает, что языка просто нет.
+ */
+const lang: Lang = langFromUrl(Astro.url);
+const other: Lang = lang === 'ru' ? 'en' : 'ru';
+const otherHref = switchLang(Astro.url.pathname, other);
+const t = useTranslations(lang);
 ---
 
 <header class="header">
   <div class="header__inner container">
     <a class="header__brand" href={brandHref}>{brand}</a>
+
+    <a class="header__lang" href={otherHref} hreflang={other} lang={other}>
+      {t('lang.switch')}
+    </a>
 
     <button
       class="header__burger"
@@ -128,8 +146,6 @@ const insideDirections = openDirections.some((d) => d.href === here);
   }
 
   .header__nav {
-    /* Ссылки и кнопка прижаты вправо, как в макете. */
-    margin-left: auto;
     display: flex;
     align-items: center;
     gap: 24px;
@@ -215,11 +231,35 @@ const insideDirections = openDirections.some((d) => d.href === here);
     font-weight: 700;
   }
 
+  /* ---------- Переключатель языка ---------- */
+
+  .header__lang {
+    margin-left: auto;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius-button);
+    padding: 6px 12px;
+    white-space: nowrap;
+  }
+
+  .header__lang:hover {
+    color: var(--accent-hover);
+    border-color: var(--accent);
+  }
+
+  /* Меню тоже прижималось вправо; теперь отступ держит переключатель, а
+     двойной auto развёл бы их по разным краям. */
+  .header__lang + .header__nav {
+    margin-left: 16px;
+  }
+
   /* ---------- Бургер ---------- */
 
   .header__burger {
     display: none;
-    margin-left: auto;
+    margin-left: 12px;
     /* Хит-таргет не меньше 44px: пальцем по иконке в 20 пикселей не попасть. */
     min-height: 44px;
     padding: 0 14px;

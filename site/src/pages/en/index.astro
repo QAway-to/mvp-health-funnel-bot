@@ -1,0 +1,224 @@
+---
+import SiteFooter from '../../components/SiteFooter.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { site } from '../../config/site';
+import { enHome } from '../../content/en/home';
+import { resolveTiers } from '../../lib/offer';
+import { botUrl } from '../../lib/leadLink';
+import Landing from '../../layouts/Landing.astro';
+
+/**
+ * Английская главная.
+ *
+ * Одна страница, а не копия сайта: англоязычному читателю сейчас нужно
+ * понять, что это за метод, чем он отличается от интенсивных холодовых
+ * практик, и как связаться. Продать ему русский курс нельзя — об этом прямо
+ * сказано в блоке про язык, а не спрятано в подвал.
+ */
+
+const meta = {
+  title: 'Federation of Health — order and dose for everyday health',
+  description:
+    'Six directions and 68 steps: running, sleep, cold exposure, habits, the morning routine and massage. A step is a short clip and the dose in text.',
+  ogImage: '/img/mountain.jpg',
+};
+
+const tiers = resolveTiers();
+const botLink = botUrl(site.lead.telegramUrl);
+---
+
+<Landing meta={meta} path="/en/">
+  <SiteHeader brand={enHome.brand} nav={[]} showCta={false} />
+
+  <main class="en">
+    <section class="en__hero container">
+      <p class="en__eyebrow">{enHome.hero.eyebrow}</p>
+      <h1 class="en__heading">{enHome.hero.heading}</h1>
+      <p class="en__lede">{enHome.hero.lede}</p>
+      <p class="en__note">{enHome.hero.note}</p>
+      <a class="btn btn--primary btn--md en__cta" href={botLink}>
+        {enHome.start.button}
+      </a>
+    </section>
+
+    <section class="en__band">
+      <div class="container en__inner">
+        <h2 class="en__title">{enHome.method.heading}</h2>
+        {enHome.method.paragraphs.map((text) => <p class="en__text">{text}</p>)}
+      </div>
+    </section>
+
+    <section class="container en__inner">
+      <h2 class="en__title">{enHome.access.heading}</h2>
+      <p class="en__text">{enHome.access.lede}</p>
+
+      <ul class="en__grid">
+        {
+          enHome.directions.map((direction) => (
+            <li class="en__card">
+              <h3 class="en__card-title">{direction.title}</h3>
+              <p class="en__card-steps">{direction.steps} steps</p>
+              <p class="en__card-text">{direction.promise}</p>
+            </li>
+          ))
+        }
+      </ul>
+
+      <ul class="en__tiers">
+        {
+          tiers.map((tier) => (
+            <li class="en__tier">
+              <span class="en__tier-price">{tier.priceLabel}</span>
+              <span class="en__tier-name">{tier.label}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="en__note">{enHome.access.note}</p>
+    </section>
+
+    <section class="en__band">
+      <div class="container en__inner">
+        <h2 class="en__title">{enHome.language.heading}</h2>
+        <p class="en__text">{enHome.language.text}</p>
+        <a class="btn btn--ghost btn--md" href={botLink}>{enHome.language.cta}</a>
+      </div>
+    </section>
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .en__hero {
+    padding: clamp(48px, 8vw, 96px) 0 clamp(40px, 6vw, 72px);
+  }
+
+  .en__inner {
+    max-width: 760px;
+    padding-block: clamp(44px, 7vw, 80px);
+  }
+
+  .en__band {
+    background: var(--bg-alt);
+  }
+
+  .en__eyebrow {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin: 0 0 18px;
+  }
+
+  .en__heading {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 5.5vw, 54px);
+    font-weight: 800;
+    line-height: 1.08;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+    margin: 0;
+    max-width: 16ch;
+  }
+
+  .en__lede {
+    margin: 22px 0 0;
+    font-size: clamp(17px, 2vw, 20px);
+    color: var(--text-lead);
+    max-width: 60ch;
+  }
+
+  .en__note {
+    margin: 14px 0 0;
+    color: var(--text-muted);
+    max-width: 60ch;
+  }
+
+  .en__cta {
+    margin-top: 32px;
+  }
+
+  .en__title {
+    font-family: var(--font-display);
+    font-size: clamp(23px, 3vw, 30px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+    margin: 0 0 18px;
+    text-wrap: balance;
+  }
+
+  .en__text {
+    margin: 0 0 14px;
+    color: var(--text-lead);
+    max-width: 62ch;
+    line-height: 1.65;
+  }
+
+  .en__grid {
+    list-style: none;
+    margin: 32px 0 0;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1px;
+    background: var(--border-hairline);
+    border: 1px solid var(--border-soft);
+  }
+
+  .en__card {
+    background: var(--card-secondary);
+    padding: 22px 24px 24px;
+  }
+
+  .en__card-title {
+    font-family: var(--font-display);
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0;
+  }
+
+  .en__card-steps {
+    margin: 4px 0 10px;
+    font-size: 13px;
+    color: var(--accent-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .en__card-text {
+    margin: 0;
+    font-size: 15px;
+    color: var(--text-card);
+  }
+
+  .en__tiers {
+    list-style: none;
+    margin: 28px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .en__tier {
+    border: 1px solid var(--border-soft);
+    padding: 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: var(--card-secondary);
+  }
+
+  .en__tier-price {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .en__tier-name {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+</style>

@@ -125,8 +125,8 @@ export const site = {
      * Заполняются вместе с реквизитами в src/content/legal.ts: пока их нет,
      * документ не показывается, и вести на него незачем.
      */
-    offer: '',
-    privacy: '',
+    offer: '/oferta/',
+    privacy: '/politika/',
     contact: '',
     /** Соцсети автора для страницы /avtor/. Пустые не отрисовываются. */
     telegramChannel: '',
