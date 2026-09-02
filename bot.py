@@ -21,6 +21,7 @@ from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
 from utils.plan_cards import card_for, load_cards, price_in
+from utils.review import load_texts
 from utils.purchase import email_in
 from utils import lavatop, stars
 from utils.telegram_html import has_markdown, plain_text, to_telegram_html
@@ -367,6 +368,16 @@ _PHOTOS = PhotoCache()
 #: плохая только сумма.
 _FUNNEL_STAGES = load_stages()
 
+#: Тексты просьбы об отзыве и допродажи.
+_REVIEW_TEXTS = load_texts()
+
+#: Короче этого — не отзыв, а «ок». Записывать такое значит завести
+#: список из десятка «спасибо» и одного настоящего мнения.
+_REVIEW_MIN_LENGTH = 40
+
+#: Согласие на показ отзыва: `rev:yes` / `rev:no`.
+_REVIEW_CALLBACK = "rev:"
+
 #: Карточки ступеней: что человек читает перед оплатой.
 _PLAN_CARDS = load_cards()
 
@@ -421,6 +432,8 @@ class TelegramBot:
         # В памяти процесса: они живут ровно один ход разговора, и класть их
         # в базу значило бы хранить то, что устареет раньше, чем понадобится.
         self._choices: dict[str, tuple[str, ...]] = {}
+        # Кого мы спросили об отзыве и ждём ответа следующим сообщением.
+        self._awaiting_review: set[str] = set()
         # chat_id -> conversation history for free chat
         self._conversations: dict[str, list[dict[str, str]]] = {}
 
@@ -656,7 +669,9 @@ class TelegramBot:
         # Клик — тоже активность: после него отсчёт тишины начинается заново.
         await store.save(replace(store.user(chat_id), last_seen_at=now_iso()))
 
-        if data.startswith(_PAY_CALLBACK):
+        if data.startswith(_REVIEW_CALLBACK):
+            await self._handle_review_consent(query, chat_id, data)
+        elif data.startswith(_PAY_CALLBACK):
             await self._handle_pay_click(query, chat_id, data)
         elif data == _CHOICE_OTHER:
             await self._handle_choice_other(update, query, chat_id)
@@ -1066,6 +1081,73 @@ class TelegramBot:
             reply_markup=InlineKeyboardMarkup(rows) if rows else None,
         )
 
+        # Отзыв просим здесь и только здесь. Человек прошёл курс целиком —
+        # это единственный момент, когда ему есть что сказать и он ещё в
+        # разговоре. Спросить раньше значит получить вежливость вместо опыта,
+        # спросить через неделю — не получить ничего.
+        await self._ask_for_review(message, state.chat_id)
+
+    async def _ask_for_review(self, message, chat_id: str) -> None:
+        """Попросить отзыв у прошедшего курс."""
+        text = _REVIEW_TEXTS.get("request", "")
+        if not text:
+            return
+        self._awaiting_review.add(chat_id)
+        await store.event(chat_id, "review_asked")
+        try:
+            await message.reply_text(with_hint(text), parse_mode="HTML")
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to ask for review: {e}", level="ERROR")
+
+    async def _handle_review(self, message, chat_id: str, text: str) -> bool:
+        """Принять отзыв, если мы его ждём. True — сообщение обработано здесь.
+
+        Публикация — отдельным вопросом и только по кнопке. Отзыв, отданный
+        боту, и отзыв, который человек согласился показать на сайте, — разные
+        вещи, и решать за него нельзя.
+        """
+        if chat_id not in self._awaiting_review:
+            return False
+        # Короткая реплика — это не отзыв, а «ок» или «спасибо». Такие не
+        # записываем и вопрос не повторяем: настаивать после курса значит
+        # испортить впечатление, ради которого всё и делалось.
+        self._awaiting_review.discard(chat_id)
+        if len(text.strip()) < _REVIEW_MIN_LENGTH:
+            return False
+
+        await store.event(chat_id, "review_left", text=text[:1000])
+        log_agent_action("Reviews", f"Отзыв от {chat_id}: {text[:200]}")
+
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Да, можно показать", callback_data=f"{_REVIEW_CALLBACK}yes")],
+            [InlineKeyboardButton("Нет, только для вас", callback_data=f"{_REVIEW_CALLBACK}no")],
+        ])
+        try:
+            await message.reply_text(
+                with_hint(
+                    _REVIEW_TEXTS.get("thanks", "Спасибо.")
+                    + "\n\n"
+                    + _REVIEW_TEXTS.get("ask_publish", "")
+                ),
+                parse_mode="HTML",
+                reply_markup=keyboard,
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to confirm review: {e}", level="ERROR")
+        return True
+
+    async def _handle_review_consent(self, query, chat_id: str, data: str) -> None:
+        """Ответ на вопрос, можно ли показать отзыв на сайте."""
+        allowed = data.endswith("yes")
+        await store.event(chat_id, "review_consent", allowed=allowed)
+        log_agent_action(
+            "Reviews", f"Чат {chat_id}: показывать отзыв — {'да' if allowed else 'нет'}"
+        )
+        key = "published_yes" if allowed else "published_no"
+        await query.message.reply_text(
+            with_hint(_REVIEW_TEXTS.get(key, "Принято.")), parse_mode="HTML"
+        )
+
     @staticmethod
     def _topics_keyboard(source: str, *, exclude: str = "") -> InlineKeyboardMarkup | None:
         """Кнопки с темами под ответом — из раздела того направления, откуда человек.
@@ -1176,6 +1258,11 @@ class TelegramBot:
         if not update.message or not update.message.text:
             return
         text = update.message.text.strip()
+
+        # Ждём отзыв — значит это он, а не вопрос. До модели: иначе она
+        # ответит на отзыв советом про здоровье.
+        if await self._handle_review(update.message, str(update.effective_chat.id), text):
+            return
 
         # Адрес почты в реплике — не вопрос к модели, а либо «вот чем я
         # плачу», либо «я уже заплатил, вот чем». Разбираем до LLM: модель

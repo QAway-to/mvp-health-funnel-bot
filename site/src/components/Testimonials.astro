@@ -48,6 +48,7 @@ const items = testimonialsFor(segment);
                 )}
                 <span class="review__who">
                   <span class="review__name">{item.name}</span>
+                  {item.source && <span class="review__source">{item.source}</span>}
                   {item.context && <span class="review__context">{item.context}</span>}
                 </span>
               </div>
@@ -118,6 +119,12 @@ const items = testimonialsFor(segment);
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .review__source {
+    display: block;
+    font-size: 13px;
+    color: var(--text-muted);
   }
 
   .review__name {
