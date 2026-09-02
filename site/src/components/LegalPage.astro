@@ -1,0 +1,118 @@
+---
+import SiteFooter from './SiteFooter.astro';
+import SiteHeader from './SiteHeader.astro';
+import { site } from '../config/site';
+import { isReady, type LegalSection } from '../content/legal';
+import Landing from '../layouts/Landing.astro';
+
+/**
+ * Юридический документ: оферта и политика на одном шаблоне.
+ *
+ * Пока реквизиты не заполнены, текст не показывается вовсе. Оферта с дырой
+ * на месте названия компании хуже её отсутствия: отсутствующую видно сразу,
+ * а дырявую человек читает как настоящую — и в спорной ситуации она работает
+ * против того, кто её выложил.
+ */
+
+interface Props {
+  meta: { title: string; description: string; ogImage: string };
+  path: string;
+  heading: string;
+  lede: string;
+  sections: readonly LegalSection[];
+}
+
+const { meta, path, heading, lede, sections } = Astro.props;
+---
+
+<Landing meta={meta} path={path}>
+  <SiteHeader brand={site.brand} nav={[]} />
+
+  <main class="legal">
+    <div class="container legal__inner">
+      <h1 class="legal__heading">{heading}</h1>
+      <p class="legal__lede">{lede}</p>
+
+      {
+        isReady ? (
+          <div class="legal__body">
+            {sections.map((section) => (
+              <section class="legal__section">
+                <h2 class="legal__title">{section.title}</h2>
+                {section.paragraphs.map((text) => (
+                  <p class="legal__text">{text}</p>
+                ))}
+              </section>
+            ))}
+          </div>
+        ) : (
+          <p class="legal__pending">
+            Документ готовится и будет опубликован до начала продаж. Пока он не
+            размещён, оплата на сайте не принимается. Вопросы по условиям —
+            через бота в Telegram.
+          </p>
+        )
+      }
+    </div>
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .legal {
+    padding: clamp(48px, 8vw, 88px) 0 clamp(56px, 9vw, 96px);
+  }
+
+  .legal__inner {
+    max-width: 720px;
+  }
+
+  .legal__heading {
+    font-family: var(--font-display);
+    font-size: clamp(30px, 5vw, 44px);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    text-wrap: balance;
+    margin: 0;
+  }
+
+  .legal__lede {
+    margin: 18px 0 0;
+    font-size: 18px;
+    color: var(--text-lead);
+  }
+
+  .legal__body {
+    margin-top: 48px;
+    display: flex;
+    flex-direction: column;
+    gap: 40px;
+  }
+
+  .legal__title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 700;
+    margin: 0 0 14px;
+  }
+
+  .legal__text {
+    margin: 0 0 12px;
+    color: var(--text-lead);
+    line-height: 1.65;
+  }
+
+  .legal__text:last-child {
+    margin-bottom: 0;
+  }
+
+  .legal__pending {
+    margin-top: 40px;
+    padding: 24px 26px;
+    border: 1px solid var(--border-soft);
+    background: var(--card-secondary);
+    color: var(--text-card);
+  }
+</style>

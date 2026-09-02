@@ -93,3 +93,34 @@ def test_the_stage_note_replaces_itself_and_does_not_pile_up():
 
 def test_the_bot_loaded_its_stages():
     assert bot_module._FUNNEL_STAGES, "бот запустился без указаний по воронке"
+
+
+# --- книга собирается из курсов, а не живёт отдельно -------------------------
+
+
+def test_the_book_covers_every_course():
+    """Направление, забытое в порядке глав, молча не попало бы в книгу."""
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_book", Path(__file__).resolve().parents[1] / "tools" / "build_book.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    from utils.steps import load_courses
+
+    assert set(load_courses()) == set(module.ORDER), "курс не расставлен в порядке глав"
+
+
+def test_the_book_strips_telegram_markup():
+    import importlib.util
+
+    spec = importlib.util.spec_from_file_location(
+        "build_book", Path(__file__).resolve().parents[1] / "tools" / "build_book.py"
+    )
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module.clean("<b>Шаг 1</b>") == "**Шаг 1**"
+    assert "<" not in module.clean("<i>курсив</i> и <b>жирный</b>")

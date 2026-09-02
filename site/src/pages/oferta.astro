@@ -1,0 +1,19 @@
+---
+import LegalPage from '../components/LegalPage.astro';
+import { offer } from '../content/legal';
+import { routes } from '../config/site';
+
+const meta = {
+  title: 'Публичная оферта — Федерация здоровья',
+  description: 'Условия предоставления доступа к материалам Федерации здоровья: предмет, тарифы, порядок оплаты, возврат и ответственность сторон.',
+  ogImage: '/img/silhouettes.jpg',
+};
+---
+
+<LegalPage
+  meta={meta}
+  path={routes.offer}
+  heading="Публичная оферта"
+  lede="Условия, на которых предоставляется доступ к материалам. Оплата означает согласие с ними."
+  sections={offer}
+/>

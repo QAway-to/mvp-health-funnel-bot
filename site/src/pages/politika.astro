@@ -1,0 +1,19 @@
+---
+import LegalPage from '../components/LegalPage.astro';
+import { privacy } from '../content/legal';
+import { routes } from '../config/site';
+
+const meta = {
+  title: 'Политика конфиденциальности — Федерация здоровья',
+  description: 'Какие данные собираются в боте и при оплате, зачем они нужны, кому передаются, сколько хранятся и как их удалить.',
+  ogImage: '/img/silhouettes.jpg',
+};
+---
+
+<LegalPage
+  meta={meta}
+  path={routes.privacy}
+  heading="Политика конфиденциальности"
+  lede="Какие данные мы получаем, зачем они нужны и как их удалить."
+  sections={privacy}
+/>

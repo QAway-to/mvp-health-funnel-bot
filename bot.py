@@ -1086,6 +1086,37 @@ class TelegramBot:
         # разговоре. Спросить раньше значит получить вежливость вместо опыта,
         # спросить через неделю — не получить ничего.
         await self._ask_for_review(message, state.chat_id)
+        await self._offer_next(message, state)
+
+    async def _offer_next(self, message, state: UserState) -> None:
+        """Допродажа после пройденного курса.
+
+        Только здесь и только одним сообщением. Допродажа сразу после оплаты
+        читается как «мало заплатил», а в середине курса отвлекает от того,
+        за чем человек пришёл. После пройденного направления она уместна:
+        он уже получил обещанное и знает, чего стоит следующее.
+
+        Что именно предложить, зависит от того, что у него есть. Прошедшему
+        курс на базовом уровне предлагается уровень выше — там разбирают его
+        видео. Тому, у кого уровень уже не базовый, предлагать нечего:
+        следующее направление и так открыто, кнопки на него стоят выше.
+        """
+        text = _REVIEW_TEXTS.get("upsell_tier", "")
+        if not text or not state.is_premium:
+            return
+
+        plan = next((p for p in _PLANS if p.action == "buy_premium"), None)
+        if plan is None:
+            return
+
+        await store.event(state.chat_id, "upsell_shown", after="course")
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Что меняется на «Премиуме»", callback_data=plan.action)]
+        ])
+        try:
+            await message.reply_text(with_hint(text), parse_mode="HTML", reply_markup=keyboard)
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Failed to send upsell: {e}", level="ERROR")
 
     async def _ask_for_review(self, message, chat_id: str) -> None:
         """Попросить отзыв у прошедшего курс."""

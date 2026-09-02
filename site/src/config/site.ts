@@ -119,6 +119,12 @@ export const site = {
    * Пустые значения не рисуются: пустая ссылка лучше ссылки в никуда.
    */
   links: {
+    /**
+     * Оферта и политика. Пусто — ссылки в подвале не рисуются.
+     *
+     * Заполняются вместе с реквизитами в src/content/legal.ts: пока их нет,
+     * документ не показывается, и вести на него незачем.
+     */
     offer: '',
     privacy: '',
     contact: '',
@@ -161,6 +167,8 @@ export const routes = {
   zakalivanie: '/zakalivanie/',
   vrednyePrivychki: '/vrednye-privychki/',
   start: '/start/',
+  offer: '/oferta/',
+  privacy: '/politika/',
   startThanks: '/start/spasibo/',
   demo: '/demo/',
   course: '/kurs/',
