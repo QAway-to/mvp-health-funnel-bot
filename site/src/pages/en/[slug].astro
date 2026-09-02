@@ -1,0 +1,258 @@
+---
+import SiteFooter from '../../components/SiteFooter.astro';
+import SiteHeader from '../../components/SiteHeader.astro';
+import { site } from '../../config/site';
+import { enDirections, type EnDirectionPage } from '../../content/en/directions';
+import { enHome } from '../../content/en/home';
+import { directions } from '../../content/directions';
+import { botUrl } from '../../lib/leadLink';
+import { resolveTiers } from '../../lib/offer';
+import Landing from '../../layouts/Landing.astro';
+
+/**
+ * Английская страница направления.
+ *
+ * Одна на все шесть: структура у них общая, различается содержание. Шесть
+ * почти одинаковых файлов разошлись бы на первой же правке — и разошлись бы
+ * тихо, потому что смотреть их все никто не станет.
+ *
+ * Картинка берётся из русского реестра направлений по слагу: адреса совпадают,
+ * значит и фон должен совпадать. Человек, переключивший язык, должен узнать
+ * страницу, а не решить, что попал в другое место.
+ */
+
+export function getStaticPaths() {
+  return enDirections.map((direction) => ({
+    params: { slug: direction.slug },
+    props: { direction },
+  }));
+}
+
+interface Props {
+  direction: EnDirectionPage;
+}
+
+const { direction } = Astro.props;
+
+const russian = directions.find((item) => item.slug === direction.slug);
+const image = russian?.image ?? '/img/mountain.jpg';
+
+const meta = {
+  title: `${direction.title} — Federation of Health`,
+  description: direction.promise,
+  ogImage: image,
+};
+
+const botLink = botUrl(site.lead.telegramUrl);
+const tiers = resolveTiers();
+---
+
+<Landing meta={meta} path={`/en/${direction.slug}/`}>
+  <SiteHeader brand={enHome.brand} nav={[]} showCta={false} />
+
+  <main class="dir">
+    <section class="dir__hero" style={`background-image: linear-gradient(to right, rgba(20,18,13,.86), rgba(20,18,13,.55)), url('${image}')`}>
+      <div class="container dir__hero-inner">
+        <p class="dir__eyebrow">{direction.steps.length} steps</p>
+        <h1 class="dir__heading">{direction.title}</h1>
+        <p class="dir__promise">{direction.promise}</p>
+      </div>
+    </section>
+
+    <section class="container dir__inner">
+      <p class="dir__angle">{direction.angle}</p>
+      {direction.body.map((text) => <p class="dir__text">{text}</p>)}
+    </section>
+
+    <section class="dir__band">
+      <div class="container dir__inner">
+        <h2 class="dir__title">What the steps cover</h2>
+        <ol class="dir__steps">
+          {direction.steps.map((step) => <li class="dir__step">{step}</li>)}
+        </ol>
+        <p class="dir__note">
+          Each step is a short clip and the dose in text — how much, in what
+          order, and what not to do.
+        </p>
+      </div>
+    </section>
+
+    <section class="container dir__inner">
+      <h2 class="dir__title">Who this is not for</h2>
+      <p class="dir__text">{direction.notFor}</p>
+
+      <h2 class="dir__title dir__title--spaced">Access</h2>
+      <p class="dir__text">{enHome.access.lede}</p>
+      <ul class="dir__tiers">
+        {
+          tiers.map((tier) => (
+            <li class="dir__tier">
+              <span class="dir__tier-price">{tier.priceLabel}</span>
+              <span class="dir__tier-name">{tier.label}</span>
+            </li>
+          ))
+        }
+      </ul>
+      <p class="dir__note">{enHome.access.note}</p>
+
+      <p class="dir__text dir__text--lang">{enHome.language.text}</p>
+      <a class="btn btn--primary btn--md" href={botLink}>{enHome.start.button}</a>
+    </section>
+  </main>
+
+  <SiteFooter />
+</Landing>
+
+<style>
+  .dir__hero {
+    background-size: cover;
+    background-position: center;
+    color: #f7f2e7;
+  }
+
+  .dir__hero-inner {
+    padding: clamp(64px, 11vw, 132px) 0;
+    max-width: 760px;
+  }
+
+  .dir__eyebrow {
+    margin: 0 0 14px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--accent);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dir__heading {
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: clamp(34px, 6vw, 58px);
+    font-weight: 800;
+    line-height: 1.06;
+    letter-spacing: -0.02em;
+    text-wrap: balance;
+  }
+
+  .dir__promise {
+    margin: 20px 0 0;
+    font-size: clamp(17px, 2vw, 20px);
+    max-width: 46ch;
+    color: rgba(247, 242, 231, 0.86);
+  }
+
+  .dir__inner {
+    max-width: 760px;
+    padding-block: clamp(44px, 7vw, 76px);
+  }
+
+  .dir__band {
+    background: var(--bg-alt);
+  }
+
+  .dir__angle {
+    margin: 0 0 22px;
+    font-size: clamp(18px, 2.2vw, 21px);
+    font-family: var(--font-display);
+    font-weight: 500;
+    line-height: 1.45;
+    color: var(--text);
+    max-width: 54ch;
+    text-wrap: balance;
+  }
+
+  .dir__text {
+    margin: 0 0 14px;
+    color: var(--text-lead);
+    max-width: 62ch;
+    line-height: 1.65;
+  }
+
+  .dir__text--lang {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border-hairline);
+    font-size: 15px;
+    color: var(--text-muted);
+  }
+
+  .dir__title {
+    margin: 0 0 18px;
+    font-family: var(--font-display);
+    font-size: clamp(22px, 3vw, 28px);
+    font-weight: 700;
+    letter-spacing: -0.015em;
+  }
+
+  .dir__title--spaced {
+    margin-top: 44px;
+  }
+
+  .dir__steps {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    display: grid;
+    gap: 1px;
+    background: var(--border-hairline);
+    border: 1px solid var(--border-soft);
+  }
+
+  .dir__step {
+    counter-increment: step;
+    background: var(--card-secondary);
+    padding: 13px 18px 13px 52px;
+    position: relative;
+    color: var(--text-card);
+  }
+
+  .dir__step::before {
+    content: counter(step);
+    position: absolute;
+    left: 18px;
+    font-family: var(--font-display);
+    font-weight: 800;
+    font-size: 13px;
+    color: var(--accent-text);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dir__note {
+    margin: 18px 0 0;
+    color: var(--text-muted);
+    max-width: 60ch;
+    font-size: 15px;
+  }
+
+  .dir__tiers {
+    list-style: none;
+    margin: 22px 0 0;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .dir__tier {
+    border: 1px solid var(--border-soft);
+    background: var(--card-secondary);
+    padding: 12px 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .dir__tier-price {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .dir__tier-name {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+</style>

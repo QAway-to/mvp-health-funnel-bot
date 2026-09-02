@@ -73,3 +73,45 @@ def test_the_english_page_does_not_promise_a_translated_course():
 def test_switch_back_from_english_lands_on_the_russian_home():
     html = (DIST / "en" / "index.html").read_text(encoding="utf-8")
     assert SWITCH.search(html).group(1) == "/"
+
+
+# --- меню не должно возвращать в другой язык --------------------------------
+
+
+def links_in_nav(html: str) -> list[str]:
+    nav = re.search(r'<nav class="header__nav".*?</nav>', html, re.S)
+    return re.findall(r'href="(/[^"#?]*)"', nav.group(0)) if nav else []
+
+
+def test_the_menu_on_an_english_page_stays_in_english():
+    """Переключился на английский, открыл меню — и уехал обратно на русский."""
+    for page in (DIST / "en").glob("*/index.html"):
+        for href in links_in_nav(page.read_text(encoding="utf-8")):
+            assert href.startswith("/en/"), f"{page.parent.name}: меню ведёт на {href}"
+
+
+def test_the_menu_on_a_russian_page_stays_in_russian():
+    for name in ("son", "massazh", "zakalivanie"):
+        for href in links_in_nav((DIST / name / "index.html").read_text(encoding="utf-8")):
+            assert not href.startswith("/en/"), f"{name}: меню ведёт на {href}"
+
+
+def test_english_pages_are_not_labelled_in_russian():
+    html = (DIST / "en" / "son" / "index.html").read_text(encoding="utf-8")
+    nav = re.search(r'<nav class="header__nav".*?</nav>', html, re.S).group(0)
+    assert not re.search(r"[Ѐ-ӿ]", nav), "в английском меню кириллица"
+
+
+def test_step_counts_match_the_real_courses():
+    """Обещать в английской версии другое число шагов — продать другое."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    from utils.steps import load_courses
+
+    courses = load_courses()
+    for page in (DIST / "en").glob("*/index.html"):
+        slug = page.parent.name
+        course = courses.get(slug)
+        if course is None:
+            continue
+        shown = page.read_text(encoding="utf-8").count('class="dir__step"')
+        assert shown == len(course.steps), f"{slug}: показано {shown}, в курсе {len(course.steps)}"

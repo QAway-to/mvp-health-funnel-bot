@@ -31,7 +31,15 @@ export const DEFAULT_LANG: Lang = 'ru';
  * вёл на 404 — то есть ровно туда, от чего он и должен спасать. Совпадение
  * проверяется тестом, а не вниманием.
  */
-export const TRANSLATED_PATHS = ['/'] as const;
+export const TRANSLATED_PATHS = [
+  '/',
+  '/beg/',
+  '/son/',
+  '/zakalivanie/',
+  '/vrednye-privychki/',
+  '/zaryadka/',
+  '/massazh/',
+] as const;
 
 /**
  * Язык по адресу страницы. `/en/...` — английский, всё остальное русское.

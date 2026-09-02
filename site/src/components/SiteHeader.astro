@@ -2,6 +2,7 @@
 import Cta from './Cta.astro';
 import { routes } from '../config/site';
 import { directions } from '../content/directions';
+import { enDirections } from '../content/en/directions';
 import { startUrl } from '../lib/leadLink';
 import { langFromUrl, switchLang, type Lang } from '../i18n';
 import { useTranslations } from '../i18n/ui';
@@ -35,11 +36,11 @@ const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.p
 
 /** Текущий адрес со слэшем на конце — в таком виде лежат все ссылки. */
 const here = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
-const isHome = here === routes.home;
 
 /** В списке — только открытые направления со своей страницей. */
-const openDirections = directions.filter((d) => d.status === 'live' && d.href);
-const insideDirections = openDirections.some((d) => d.href === here);
+const russianDirections = directions
+  .filter((d) => d.status === 'live' && d.href)
+  .map((d) => ({ title: d.title, href: d.href as string }));
 
 /**
  * Язык страницы и ссылка на другой.
@@ -52,6 +53,23 @@ const lang: Lang = langFromUrl(Astro.url);
 const other: Lang = lang === 'ru' ? 'en' : 'ru';
 const otherHref = switchLang(Astro.url.pathname, other);
 const t = useTranslations(lang);
+
+/**
+ * Меню на языке страницы и со ссылками того же языка.
+ *
+ * Раньше здесь всегда стоял русский список: человек переключался на
+ * английский, открывал «Направления» и уезжал обратно на русскую страницу.
+ * Переключатель работал, а меню возвращало — и это хуже, чем отсутствие
+ * перевода вовсе.
+ */
+const openDirections =
+  lang === 'en'
+    ? enDirections.map((d) => ({ title: d.title, href: `/en/${d.slug}/` }))
+    : russianDirections;
+
+const homeHref = lang === 'en' ? '/en/' : routes.home;
+const isHome = here === homeHref;
+const insideDirections = openDirections.some((d) => d.href === here);
 ---
 
 <header class="header">
@@ -70,14 +88,14 @@ const t = useTranslations(lang);
       data-nav-toggle
     >
       <span class="header__bars" aria-hidden="true"></span>
-      <span class="header__burger-label">Меню</span>
+      <span class="header__burger-label">{t('nav.menu')}</span>
     </button>
 
-    <nav class="header__nav" id="site-nav" aria-label="Основная навигация">
+    <nav class="header__nav" id="site-nav" aria-label={t('nav.aria')}>
       {
         !isHome && (
-          <a class="header__link" href={routes.home}>
-            На главную
+          <a class="header__link" href={homeHref}>
+            {t('nav.home')}
           </a>
         )
       }
@@ -87,7 +105,7 @@ const t = useTranslations(lang);
           class="header__link header__summary"
           data-current={insideDirections ? 'true' : undefined}
         >
-          Направления
+          {t('nav.directions')}
         </summary>
         <ul class="header__dropdown">
           {
@@ -111,7 +129,7 @@ const t = useTranslations(lang);
       {
         showCta && (
           <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
-            Первый шаг бесплатно
+            {t('cta.free')}
           </Cta>
         )
       }
