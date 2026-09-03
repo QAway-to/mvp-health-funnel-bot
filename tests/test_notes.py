@@ -312,3 +312,93 @@ def test_the_local_decoder_gets_no_primer():
     source = (NOTES / "transcribe.py").read_text(encoding="utf-8")
     call = source.split("model.transcribe(", 1)[1].split("\n    )", 1)[0]
     assert "initial_prompt" not in call
+
+
+# --- разговор с облаком -----------------------------------------------------
+
+
+class FakeResponse:
+    """Ответ Groq. Ровно те три метода, которыми пользуется `_remote`."""
+
+    def __init__(self, status: int, payload=None):
+        self.status = status
+        self._payload = payload
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+    async def json(self):
+        return self._payload
+
+    async def text(self):
+        return "тело ответа"
+
+
+class FakeSession:
+    def __init__(self, response: FakeResponse):
+        self._response = response
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return False
+
+    def post(self, *_args, **kwargs):
+        # Заодно единственное место, где видно отправляемое: ключ уходит
+        # заголовком и ничем иным.
+        FakeSession.last_headers = kwargs.get("headers", {})
+        return self._response
+
+
+@pytest.fixture
+def cloud(monkeypatch):
+    """Подставить ответ облака вместо сети."""
+    from notes import transcribe as module
+
+    monkeypatch.setattr(module.config, "GROQ_API_KEY", "gsk_ключ")
+
+    def answer(status: int, payload=None):
+        response = FakeResponse(status, payload)
+        monkeypatch.setattr(module.aiohttp, "ClientSession", lambda **_kw: FakeSession(response))
+        return module
+
+    return answer
+
+
+@pytest.mark.asyncio
+async def test_the_cloud_answer_is_the_note(cloud):
+    module = cloud(200, {"text": "  Мысль про монетизацию.  "})
+
+    assert await module._remote(b"OggS...", ".oga") == "Мысль про монетизацию."
+
+
+@pytest.mark.asyncio
+async def test_a_wrong_key_falls_back_instead_of_failing(cloud):
+    """401 — самый вероятный отказ здесь: ключ xAI вместо ключа Groq."""
+    module = cloud(401)
+
+    assert await module._remote(b"OggS...", ".oga") is None
+
+
+@pytest.mark.asyncio
+async def test_a_two_hundred_of_the_wrong_shape_does_not_raise(cloud):
+    """Двести с чужим телом приходит от прокси, а не от Groq.
+
+    Разбирать там нечего, но и падать нельзя: заметка ушла бы в ошибку вместо
+    локальной расшифровки — ровно то, ради чего запасной путь и держится.
+    """
+    module = cloud(200, ["не", "объект"])
+
+    assert await module._remote(b"OggS...", ".oga") is None
+
+
+@pytest.mark.asyncio
+async def test_the_key_travels_in_the_header_and_nowhere_else(cloud):
+    module = cloud(200, {"text": "ок"})
+    await module._remote(b"OggS...", ".oga")
+
+    assert FakeSession.last_headers["Authorization"] == "Bearer gsk_ключ"

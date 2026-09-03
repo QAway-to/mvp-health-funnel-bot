@@ -30,6 +30,7 @@ import asyncio
 import logging
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import aiohttp
 
@@ -46,7 +47,12 @@ TIMEOUT = aiohttp.ClientTimeout(total=180)
 
 #: Модель загружается один раз и живёт до перезапуска: её подъём с диска —
 #: единицы секунд, и платить их на каждой заметке незачем.
-_model = None
+#:
+#: Тип намеренно `Any`: `WhisperModel` приезжает из faster_whisper, а тот
+#: тянет за собой ctranslate2 и onnxruntime на сотни мегабайт. Импортировать
+#: их ради аннотации в модуле, который на облачном пути к ним не обращается,
+#: значит платить памятью за подсказку редактору.
+_model: Any = None
 
 #: Очередь на одного. Не про корректность, а про память и отзывчивость.
 _lock = asyncio.Lock()
@@ -109,14 +115,27 @@ async def _remote(audio: bytes, suffix: str) -> str | None:
                     )
                     return None
                 data = await response.json()
+
+                # Разбор ответа тоже внутри try, и это не педантизм. Двести с
+                # телом не той формы приходит не от Groq, а от того, кто встал
+                # между нами: заглушка прокси, страница лимита. `data` тогда
+                # список или строка, `.get` по ней падает, и заметка умерла бы
+                # с исключением ровно там, где весь этот путь был затеян ради
+                # обратного — тихо уйти на локальную модель.
+                if not isinstance(data, dict):
+                    log.error(
+                        "notes: Groq ответил не объектом, а %s — считаю локально",
+                        type(data).__name__,
+                    )
+                    return None
+
+                return str(data.get("text") or "").strip()
     except Exception:  # noqa: BLE001 — сеть падает как угодно, ответ один
         log.exception("notes: запрос к Groq не удался — считаю локально")
         return None
 
-    return str(data.get("text") or "").strip()
 
-
-def _load():
+def _load() -> Any:
     global _model
     if _model is None:
         from faster_whisper import WhisperModel
