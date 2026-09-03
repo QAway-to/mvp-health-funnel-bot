@@ -222,3 +222,93 @@ def test_note_path_sorts_by_time():
     early = note_path(datetime(2026, 9, 4, 9, 5), "a")
     late = note_path(datetime(2026, 9, 4, 21, 5), "b")
     assert early < late
+
+
+# --- расшифровка ------------------------------------------------------------
+#
+# Локальная модель здесь не поднимается ни разу: она весит сотни мегабайт и
+# считает секундами. Проверяется развилка — кто из двух путей отвечает и когда
+# управление уходит второму, — а не сам разбор звука.
+
+
+@pytest.fixture
+def two_paths(monkeypatch):
+    """Подменить оба пути расшифровки и записывать, кого позвали."""
+    from notes import transcribe as module
+
+    called: list[str] = []
+
+    async def remote(audio, suffix):
+        called.append("remote")
+        return remote.answer
+
+    async def local(audio, suffix):
+        called.append("local")
+        return "локально"
+
+    remote.answer = "из облака"
+    monkeypatch.setattr(module, "_remote", remote)
+    monkeypatch.setattr(module, "_local", local)
+    monkeypatch.setattr(module.config, "GROQ_API_KEY", "gsk_ключ")
+    return module, called, remote
+
+
+@pytest.mark.asyncio
+async def test_the_cloud_is_tried_first(two_paths):
+    module, called, _ = two_paths
+
+    assert await module.transcribe(b"OggS...") == "из облака"
+    assert called == ["remote"]
+
+
+@pytest.mark.asyncio
+async def test_silence_from_the_cloud_is_not_retried_locally(two_paths):
+    """Пустой ответ — это тишина, а не отказ.
+
+    Разница дорогая: переспроси мы тишину у слабой локальной модели, она
+    ответила бы не пустотой, а выдуманной фразой.
+    """
+    module, called, remote = two_paths
+    remote.answer = ""
+
+    assert await module.transcribe(b"OggS...") == ""
+    assert called == ["remote"]
+
+
+@pytest.mark.asyncio
+async def test_a_dead_cloud_falls_back_to_the_local_model(two_paths):
+    module, called, remote = two_paths
+    remote.answer = None
+
+    assert await module.transcribe(b"OggS...") == "локально"
+    assert called == ["remote", "local"]
+
+
+@pytest.mark.asyncio
+async def test_without_a_key_nothing_leaves_the_process(two_paths):
+    module, called, _ = two_paths
+    module.config.GROQ_API_KEY = ""
+
+    assert await module.transcribe(b"OggS...") == "локально"
+    assert called == ["local"]
+
+
+@pytest.mark.asyncio
+async def test_an_oversized_file_does_not_go_to_the_cloud(monkeypatch):
+    """Слишком большое отправляется на локальную модель, а не в ошибку."""
+    from notes import transcribe as module
+
+    monkeypatch.setattr(module.config, "GROQ_MAX_BYTES", 10)
+    assert await module._remote(b"x" * 100, ".oga") is None
+
+
+def test_the_local_decoder_gets_no_primer():
+    """Затравка на маленькой модели вставляет свои же слова в расшифровку.
+
+    Проверяется текстом, а не поведением: соблазн вернуть `initial_prompt`
+    выглядит разумно ровно до того момента, когда в заметке появляется слово,
+    которого никто не говорил.
+    """
+    source = (NOTES / "transcribe.py").read_text(encoding="utf-8")
+    call = source.split("model.transcribe(", 1)[1].split("\n    )", 1)[0]
+    assert "initial_prompt" not in call
