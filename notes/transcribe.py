@@ -65,7 +65,13 @@ async def transcribe(audio: bytes, suffix: str = ".oga") -> str:
         # Именно `is not None`: пустая строка — это тишина, законный ответ
         # облака, и переспрашивать её у слабой локальной модели незачем.
         if text is not None:
+            log.info("notes: расшифровано в облаке, %s символов", len(text))
             return text
+    else:
+        # Ключа нет — это не поломка, но и не то, чего мы хотели. Без этой
+        # строки «облако включено» и «облако не настроено» выглядят в логах
+        # одинаково: тишиной.
+        log.warning("notes: ключ Groq не задан — считаю локально")
 
     return await _local(audio, suffix)
 
@@ -176,6 +182,10 @@ def _run(path: str) -> str:
 
 
 async def _local(audio: bytes, suffix: str) -> str:
+    # Модель резидентна, и на инстансе с потолком по памяти это самая дорогая
+    # строка во всём модуле. В лог — чтобы OOM было с чем сопоставить.
+    log.info("notes: считаю локально моделью %s, луч %s", config.WHISPER_MODEL, config.BEAM_SIZE)
+
     with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as handle:
         handle.write(audio)
         temp = Path(handle.name)
