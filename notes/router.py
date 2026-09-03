@@ -29,6 +29,12 @@ log = logging.getLogger("notes")
 
 router = APIRouter()
 
+# Пустой NOTES_OWNER_ID — не «пока не настроено», а «игнорировать всех»: бот
+# поднимется, ответит Telegram на каждый апдейт и не сделает ничего. Снаружи
+# это неотличимо от мёртвого бота, поэтому говорим об этом при старте.
+if config.is_configured() and not config.OWNER_ID:
+    log.warning("notes: NOTES_OWNER_ID не задан — бот будет молчать на любое сообщение")
+
 #: Типы вложений, из которых можно достать звук, в порядке предпочтения.
 AUDIO_FIELDS = ("voice", "video_note", "audio")
 
@@ -47,6 +53,14 @@ async def webhook(
     if secret != config.WEBHOOK_SECRET:
         # 200, а не 403: Telegram на ошибку повторяет доставку, а повторять
         # здесь нечего — секрет не станет верным со второй попытки.
+        #
+        # В лог всё же пишем. Снаружи неверный секрет выглядит точно как
+        # мёртвый бот, и без этой строки причину искать негде. Самого секрета
+        # здесь нет и быть не должно — только факт расхождения.
+        log.warning(
+            "notes: апдейт с неверным секретом (заголовок %s)",
+            "пустой" if not secret else "не совпал",
+        )
         return {"ok": True}
 
     try:
@@ -55,8 +69,23 @@ async def webhook(
         return {"ok": True}
 
     message = update.get("message") or update.get("edited_message")
-    if isinstance(message, dict) and _from_owner(message):
-        asyncio.create_task(_handle(message))
+    if not isinstance(message, dict):
+        # Апдейты бывают не только про сообщения: реакции, статусы участников.
+        log.info("notes: апдейт без сообщения — %s", sorted(update.keys()))
+        return {"ok": True}
+
+    if not _from_owner(message):
+        # Идентификатор в логе намеренно: чужому он ничего не даёт, а владельцу
+        # показывает, какое именно число вписать в NOTES_OWNER_ID.
+        log.warning(
+            "notes: сообщение не от владельца — от %s, ожидался %s",
+            (message.get("from") or {}).get("id"),
+            config.OWNER_ID or "(не задан)",
+        )
+        return {"ok": True}
+
+    log.info("notes: принято сообщение %s", message.get("message_id"))
+    asyncio.create_task(_handle(message))
 
     return {"ok": True}
 
