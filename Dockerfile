@@ -39,6 +39,17 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# Модель распознавания кладётся в образ на сборке.
+#
+# Диск на Render эфемерный: не запеки её здесь — и она будет скачиваться заново
+# после каждого деплоя, а первая заметка после выката будет ждать эту закачку.
+#
+# Значение должно совпадать с NOTES_WHISPER_MODEL в окружении. Разойдутся —
+# сервис не сломается, но модель уедет качаться в рантайме, то есть ровно то,
+# от чего эта строка и защищает.
+ARG NOTES_WHISPER_MODEL=base
+RUN python -c "from faster_whisper import WhisperModel; WhisperModel('${NOTES_WHISPER_MODEL}', device='cpu', compute_type='int8')"
+
 COPY . .
 
 # Исходники сайта в образе не нужны — нужна только сборка. Кладём её туда, где
