@@ -1,5 +1,7 @@
 ---
-import { startUrl } from '../lib/leadLink';
+import { langFromUrl } from '../i18n';
+import { useTranslations } from '../i18n/ui';
+import { freeStepUrl } from '../lib/leadLink';
 import { featuredTier } from '../lib/offer';
 
 /**
@@ -21,13 +23,18 @@ interface Props {
 
 const { segment } = Astro.props;
 
-const featured = featuredTier(segment);
+/* Язык берётся из адреса: панель стоит на каждой странице, и передавать его
+   пропсом значило бы однажды забыть — на английской странице. */
+const lang = langFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const featured = featuredTier(segment, lang);
 const showSales = featured.hasCheckout;
 ---
 
 <div class="sticky" data-sticky-cta hidden>
-  <a class="sticky__btn sticky__btn--free" href={startUrl(segment)} data-cta="sticky_free" data-cta-kind="primary">
-    Первый шаг бесплатно
+  <a class="sticky__btn sticky__btn--free" href={freeStepUrl(segment, lang)} data-cta="sticky_free" data-cta-kind="primary">
+    {t('cta.free')}
   </a>
 
   {

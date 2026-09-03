@@ -12,9 +12,10 @@
  */
 
 import { site } from '../config/site';
-import { subscriptionContent } from '../content/subscription';
+import { subscriptionByLang } from '../content/subscription';
 import type { SubscriptionTier } from '../content/types';
-import { botUrl, isLeadSegment, startUrl } from './leadLink';
+import { DEFAULT_LANG, type Lang } from '../i18n';
+import { botUrl, freeStepUrl, isLeadSegment } from './leadLink';
 
 /**
  * Заполнено ли поле конфига.
@@ -48,9 +49,15 @@ export interface ResolvedTier extends SubscriptionTier {
   readonly starsLabel: string;
 }
 
-const priceLabelFor = (price: string): string => {
+/**
+ * Цена с периодом: «$20 в месяц», «$20 per month».
+ *
+ * Период приходит из контента языка, а не из конфига: сумма одна на оба
+ * языка, а слово рядом с ней — разное. Раньше английская карточка честно
+ * показывала «$20 в месяц».
+ */
+const priceLabelFor = (price: string, period: string): string => {
   if (!isFilled(price)) return '';
-  const { period } = site.subscription;
   return isFilled(period) ? `${price} ${period}` : price;
 };
 
@@ -75,8 +82,11 @@ const payHref = (payUrl: string, segment?: string): string => {
  * Подпись кнопки честна в каждом состоянии: есть оплата — зовём в неё,
  * нет — зовём на бесплатное, а не обещаем оплату, которой пока не существует.
  */
-export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
-  subscriptionContent.tiers.map((tier) => {
+export const resolveTiers = (
+  segment?: string,
+  lang: Lang = DEFAULT_LANG,
+): readonly ResolvedTier[] =>
+  subscriptionByLang[lang].tiers.map((tier) => {
     if (!isTierId(tier.id)) {
       throw new Error(
         `[subscription] уровень «${tier.id}» описан в контенте, но цены для него нет в site.subscription.tiers`,
@@ -91,23 +101,11 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
 
     return {
       ...tier,
-      priceLabel: priceLabelFor(price),
+      priceLabel: priceLabelFor(price, subscriptionByLang[lang].period),
       hasCheckout,
-      href: hasCheckout ? payHref(payUrl, segment) : startUrl(segment),
+      href: hasCheckout ? payHref(payUrl, segment) : freeStepUrl(segment, lang),
       kind: hasCheckout ? 'sales' : 'primary',
-      ctaLabel: hasCheckout ? tier.ctaLabel : 'Первый шаг бесплатно',
-      /**
-       * Второй способ оплаты: звёздами внутри Telegram.
-       *
-       * Дверей две, и они не равнозначны по удобству для разных людей.
-       * Картой платят те, у кого её достаточно; звёздами — те, кто живёт в
-       * Telegram и не хочет вводить карту на чужом сайте. Показывать только
-       * одну — значит терять вторую половину.
-       *
-       * Ведёт в бота с меткой направления: там человек выбирает ступень и
-       * платит, не выходя из чата. Появляется только рядом с оплатой картой —
-       * пока её нет, обе кнопки вели бы в одно и то же место.
-       */
+      ctaLabel: hasCheckout ? tier.ctaLabel : subscriptionByLang[lang].ui.freeCta,
       /**
        * Дверей две, и они не равнозначны для разных людей. Картой платят те,
        * у кого она под рукой; звёздами — те, кто живёт в Telegram и не хочет
@@ -120,7 +118,7 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
         hasCheckout && isFilled(site.lead.telegramUrl)
           ? botUrl(site.lead.telegramUrl, segment, tier.id)
           : '',
-      starsLabel: 'Звёздами в Telegram',
+      starsLabel: subscriptionByLang[lang].starsLabel,
     };
   });
 
@@ -130,8 +128,8 @@ export const resolveTiers = (segment?: string): readonly ResolvedTier[] =>
  * Он подставляется в сквозные места: мобильную панель и финальный призыв.
  * Метка ставится ровно одному уровню: два «рекомендую» не рекомендуют ничего.
  */
-export const featuredTier = (segment?: string): ResolvedTier => {
-  const tiers = resolveTiers(segment);
+export const featuredTier = (segment?: string, lang: Lang = DEFAULT_LANG): ResolvedTier => {
+  const tiers = resolveTiers(segment, lang);
   const featured = tiers.filter((tier) => isFilled(tier.badge));
 
   if (featured.length > 1) {

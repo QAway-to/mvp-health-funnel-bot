@@ -1,224 +1,129 @@
 ---
+import Cta from '../../components/Cta.astro';
+import DirectionsGrid from '../../components/DirectionsGrid.astro';
+import DirectionsSoon from '../../components/DirectionsSoon.astro';
+import Faq from '../../components/Faq.astro';
+import FinalCta from '../../components/FinalCta.astro';
+import HubIntro from '../../components/HubIntro.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
+import StickyCta from '../../components/StickyCta.astro';
+import Subscription from '../../components/Subscription.astro';
+import Testimonials from '../../components/Testimonials.astro';
 import { site } from '../../config/site';
-import { enHome } from '../../content/en/home';
-import { resolveTiers } from '../../lib/offer';
-import { botUrl } from '../../lib/leadLink';
+import { testimonialsFor } from '../../content/testimonials';
+import { enFaq, enFinalCta, enHome } from '../../content/en/home';
+import { liveDirectionsFor, soonDirectionsFor, directionsCountFor } from '../../i18n/content';
+import { botUrl, freeStepUrl } from '../../lib/leadLink';
 import Landing from '../../layouts/Landing.astro';
 
 /**
- * Английская главная.
+ * Английская главная — тот же сайт, а не его витрина.
  *
- * Одна страница, а не копия сайта: англоязычному читателю сейчас нужно
- * понять, что это за метод, чем он отличается от интенсивных холодовых
- * практик, и как связаться. Продать ему русский курс нельзя — об этом прямо
- * сказано в блоке про язык, а не спрятано в подвал.
+ * ЧТО БЫЛО ДО 03.09.2026. Одна страница на четыре блока: заголовок, метод,
+ * шесть неактивных карточек, три цены строкой. Карточки не были ссылками,
+ * хотя страницы направлений уже существовали; купить со страницы было
+ * нельзя; отзывов, вопросов и последнего экрана не было вовсе. Человек,
+ * пришедший по ссылке из письма к инструктору холодовых практик, упирался
+ * в текст и уходил.
+ *
+ * ЧТО ЗДЕСЬ СЕЙЧАС. Те же секции, что и на русской главной, и собраны они из
+ * тех же компонентов: сетка направлений, готовящиеся темы, отзывы, подписка
+ * с обеими кнопками оплаты, вопросы, последний экран. Отличается текст —
+ * он написан под другого читателя, — и один блок сверх русской версии: про
+ * язык материала. Он стоит дважды, потому что это единственное, о чём тут
+ * нельзя умолчать.
  */
 
-const meta = {
-  title: 'Federation of Health — order and dose for everyday health',
-  description:
-    'Six directions and 68 steps: running, sleep, cold exposure, habits, the morning routine and massage. A step is a short clip and the dose in text.',
-  ogImage: '/img/mountain.jpg',
-};
+const liveCount = liveDirectionsFor('en').length;
+const totalCount = directionsCountFor('en');
+const soonCount = soonDirectionsFor('en').length;
 
-const tiers = resolveTiers();
 const botLink = botUrl(site.lead.telegramUrl);
+const freeLink = freeStepUrl('home', 'en');
+
+/* Отзывов по-английски может не оказаться: непереведённые не показываются.
+   Тон следующей секции считается по факту, а не по надежде. */
+const hasTestimonials = testimonialsFor('all', 'en').length > 0;
 ---
 
-<Landing meta={meta} path="/en/">
-  <SiteHeader brand={enHome.brand} nav={[]} showCta={false} />
+<Landing meta={enHome.meta} path="/en/">
+  <SiteHeader brand={enHome.brand} nav={[]} segment="home" />
 
-  <main class="en">
-    <section class="en__hero container">
-      <p class="en__eyebrow">{enHome.hero.eyebrow}</p>
-      <h1 class="en__heading">{enHome.hero.heading}</h1>
-      <p class="en__lede">{enHome.hero.lede}</p>
-      <p class="en__note">{enHome.hero.note}</p>
-      <a class="btn btn--primary btn--md en__cta" href={botLink}>
-        {enHome.start.button}
-      </a>
-    </section>
+  <main>
+    <HubIntro
+      kicker={enHome.hero.eyebrow}
+      title={enHome.hero.heading}
+      lead={enHome.hero.lede}
+      note={enHome.hero.note}
+      primary={{ label: enHome.start.button, href: freeLink, placement: 'hub_hero' }}
+      secondary={{
+        label: enHome.hero.secondary,
+        href: '#directions',
+        placement: 'hub_directions',
+      }}
+    />
 
-    <section class="en__band">
-      <div class="container en__inner">
-        <h2 class="en__title">{enHome.method.heading}</h2>
-        {enHome.method.paragraphs.map((text) => <p class="en__text">{text}</p>)}
+    <section class="section section--alt" data-section="method">
+      <div class="container prose">
+        <h2 class="h2">{enHome.method.heading}</h2>
+        {enHome.method.paragraphs.map((text) => <p class="prose__text">{text}</p>)}
       </div>
     </section>
 
-    <section class="container en__inner">
-      <h2 class="en__title">{enHome.access.heading}</h2>
-      <p class="en__text">{enHome.access.lede}</p>
+    <DirectionsGrid
+      tone="base"
+      kicker={enHome.directions.kicker}
+      heading={enHome.directions.heading(liveCount, totalCount)}
+      action={enHome.directions.cardAction}
+      stepsLabel={enHome.directions.stepsLabel}
+    />
 
-      <ul class="en__grid">
-        {
-          enHome.directions.map((direction) => (
-            <li class="en__card">
-              <h3 class="en__card-title">{direction.title}</h3>
-              <p class="en__card-steps">{direction.steps} steps</p>
-              <p class="en__card-text">{direction.promise}</p>
-            </li>
-          ))
-        }
-      </ul>
+    <DirectionsSoon
+      tone="alt"
+      kicker={enHome.soon.kicker}
+      heading={enHome.soon.heading(soonCount)}
+      lede={enHome.soon.lede}
+    />
 
-      <ul class="en__tiers">
-        {
-          tiers.map((tier) => (
-            <li class="en__tier">
-              <span class="en__tier-price">{tier.priceLabel}</span>
-              <span class="en__tier-name">{tier.label}</span>
-            </li>
-          ))
-        }
-      </ul>
-      <p class="en__note">{enHome.access.note}</p>
-    </section>
+    {hasTestimonials && <Testimonials tone="base" segment="all" />}
 
-    <section class="en__band">
-      <div class="container en__inner">
-        <h2 class="en__title">{enHome.language.heading}</h2>
-        <p class="en__text">{enHome.language.text}</p>
-        <a class="btn btn--ghost btn--md" href={botLink}>{enHome.language.cta}</a>
+    {/* Блок о языке стоит ПЕРЕД ценой. Человек должен прочитать, на каком
+        языке материал, до того, как увидит сумму, — а не после. То же
+        предупреждение повторяется внутри блока подписки. */}
+    <section class={`section section--${hasTestimonials ? 'alt' : 'base'}`} data-section="language">
+      <div class="container prose">
+        <h2 class="h2">{enHome.language.heading}</h2>
+        <p class="prose__text">{enHome.language.text}</p>
+        <Cta kind="secondary" href={botLink} placement="language">{enHome.language.cta}</Cta>
       </div>
     </section>
+
+    <Subscription tone={hasTestimonials ? 'base' : 'alt'} segment="home" />
+
+    <Faq faq={enFaq} tone="alt" />
+
+    <FinalCta finalCta={enFinalCta} segment="home" />
   </main>
+
+  <StickyCta segment="home" />
 
   <SiteFooter />
 </Landing>
 
 <style>
-  .en__hero {
-    padding: clamp(48px, 8vw, 96px) 0 clamp(40px, 6vw, 72px);
-  }
-
-  .en__inner {
-    max-width: 760px;
-    padding-block: clamp(44px, 7vw, 80px);
-  }
-
-  .en__band {
-    background: var(--bg-alt);
-  }
-
-  .en__eyebrow {
-    font-size: 13px;
-    font-weight: 600;
-    letter-spacing: 0.14em;
-    text-transform: uppercase;
-    color: var(--accent-text);
-    margin: 0 0 18px;
-  }
-
-  .en__heading {
-    font-family: var(--font-display);
-    font-size: clamp(32px, 5.5vw, 54px);
-    font-weight: 800;
-    line-height: 1.08;
-    letter-spacing: -0.02em;
-    text-wrap: balance;
-    margin: 0;
-    max-width: 16ch;
-  }
-
-  .en__lede {
-    margin: 22px 0 0;
-    font-size: clamp(17px, 2vw, 20px);
-    color: var(--text-lead);
-    max-width: 60ch;
-  }
-
-  .en__note {
-    margin: 14px 0 0;
-    color: var(--text-muted);
-    max-width: 60ch;
-  }
-
-  .en__cta {
-    margin-top: 32px;
-  }
-
-  .en__title {
-    font-family: var(--font-display);
-    font-size: clamp(23px, 3vw, 30px);
-    font-weight: 700;
-    letter-spacing: -0.015em;
-    margin: 0 0 18px;
-    text-wrap: balance;
-  }
-
-  .en__text {
-    margin: 0 0 14px;
-    color: var(--text-lead);
-    max-width: 62ch;
-    line-height: 1.65;
-  }
-
-  .en__grid {
-    list-style: none;
-    margin: 32px 0 0;
-    padding: 0;
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 1px;
-    background: var(--border-hairline);
-    border: 1px solid var(--border-soft);
-  }
-
-  .en__card {
-    background: var(--card-secondary);
-    padding: 22px 24px 24px;
-  }
-
-  .en__card-title {
-    font-family: var(--font-display);
-    font-size: 18px;
-    font-weight: 700;
-    margin: 0;
-  }
-
-  .en__card-steps {
-    margin: 4px 0 10px;
-    font-size: 13px;
-    color: var(--accent-text);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .en__card-text {
-    margin: 0;
-    font-size: 15px;
-    color: var(--text-card);
-  }
-
-  .en__tiers {
-    list-style: none;
-    margin: 28px 0 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .en__tier {
-    border: 1px solid var(--border-soft);
-    padding: 12px 18px;
+  /* Колонка текста: та же ширина, что у остальных читаемых блоков сайта. */
+  .prose {
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    background: var(--card-secondary);
+    align-items: flex-start;
+    gap: 20px;
+    max-width: 760px;
   }
 
-  .en__tier-price {
-    font-family: var(--font-display);
-    font-size: 20px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .en__tier-name {
-    font-size: 13px;
-    color: var(--text-muted);
+  .prose__text {
+    font-size: 18px;
+    line-height: 1.65;
+    color: var(--text-lead);
   }
 </style>

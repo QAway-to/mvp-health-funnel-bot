@@ -11,7 +11,8 @@
  * сегмент окупается» остаётся без ответа при любом рекламном бюджете.
  */
 
-import { routes } from '../config/site';
+import { routes, site } from '../config/site';
+import { DEFAULT_LANG, type Lang } from '../i18n';
 
 /**
  * Закрытый список сегментов. Именно закрытый: значение приезжает из адресной
@@ -84,4 +85,22 @@ export const botUrl = (base: string, segment?: string, tier?: string): string =>
   const label = isLeadSegment(segment) ? segment : DEFAULT_SEGMENT;
   const payload = isTierId(tier) ? `buy_${tier}${PAYLOAD_SEPARATOR}${label}` : label;
   return `${clean}?start=${payload}`;
+};
+
+/**
+ * Бесплатная ступень на языке страницы.
+ *
+ * По-русски человек идёт через `/start/` — там объясняется, что он получит, и
+ * оттуда снимается аналитика. Английской версии этой страницы нет, и вести на
+ * неё англоязычного значит показать ему русский текст ровно между кнопкой и
+ * ботом. Поэтому с английских страниц ссылка ведёт прямо в чат: метка
+ * направления доезжает та же самая, теряется только промежуточный экран.
+ */
+export const freeStepUrl = (segment?: string, lang: Lang = DEFAULT_LANG): string => {
+  /* Пустой адрес бота — рабочее состояние конфига, как и везде на сайте.
+     Без этой проверки `botUrl('')` вернул бы `?start=home`, то есть ссылку на
+     ту же самую страницу: кнопка нажимается, ничего не происходит. Лучше
+     увести на русскую `/start/` — там хотя бы написано, что человек получит. */
+  if (lang === DEFAULT_LANG || !site.lead.telegramUrl.trim()) return startUrl(segment);
+  return botUrl(site.lead.telegramUrl, segment);
 };

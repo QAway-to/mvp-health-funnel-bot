@@ -188,3 +188,49 @@ export const enDirections: readonly EnDirectionPage[] = [
 
 export const enDirectionBySlug = (slug: string): EnDirectionPage | undefined =>
   enDirections.find((direction) => direction.slug === slug);
+
+/**
+ * Направления, которых по-английски ещё нет — как и по-русски.
+ *
+ * Русская главная говорит «направлений десять», английская молчала о четырёх
+ * из них и обещала шесть. Это не сокращение, а другое предложение: человек
+ * платит за подписку, в которую новые темы входят без доплаты, и должен
+ * видеть, какие именно темы имеются в виду.
+ *
+ * Слаги те же, что в русском реестре: список сверяется с ним на сборке
+ * (`src/i18n/content.ts`), поэтому переименовать направление и забыть про
+ * английскую версию нельзя.
+ */
+export interface EnSoonDirection {
+  readonly slug: string;
+  readonly title: string;
+  readonly promise: string;
+}
+
+export const enSoonDirections: readonly EnSoonDirection[] = [
+  {
+    slug: 'eda',
+    title: 'Food',
+    promise: 'What to eat and when, so the day does not run out of you.',
+  },
+  {
+    slug: 'trenirovki',
+    title: 'Training',
+    promise: 'Strength without a gym: a load an ordinary week can carry.',
+  },
+  {
+    slug: 'golodanie',
+    /**
+     * Обещание узкое сознательно, как и в русском реестре: материала о том,
+     * кому входить нельзя, у нас нет, и «detox» здесь не обещается ни на
+     * каком языке. По-английски соблазн сильнее — слово продано рынком.
+     */
+    title: 'Fasting',
+    promise: 'Pauses from food: how to enter, how to come out, and why coming out matters more.',
+  },
+  {
+    slug: 'pohudenie',
+    title: 'Weight',
+    promise: 'Weight as a consequence of habits, not a three-week diet.',
+  },
+];

@@ -1,12 +1,17 @@
 ---
+import Cta from '../../components/Cta.astro';
+import Faq from '../../components/Faq.astro';
+import FinalCta from '../../components/FinalCta.astro';
 import SiteFooter from '../../components/SiteFooter.astro';
 import SiteHeader from '../../components/SiteHeader.astro';
-import { site } from '../../config/site';
-import { enDirections, type EnDirectionPage } from '../../content/en/directions';
-import { enHome } from '../../content/en/home';
+import StickyCta from '../../components/StickyCta.astro';
+import Subscription from '../../components/Subscription.astro';
+import Testimonials from '../../components/Testimonials.astro';
 import { directions } from '../../content/directions';
-import { botUrl } from '../../lib/leadLink';
-import { resolveTiers } from '../../lib/offer';
+import { enDirections, type EnDirectionPage } from '../../content/en/directions';
+import { enFaq, enHome } from '../../content/en/home';
+import { testimonialsFor } from '../../content/testimonials';
+import { freeStepUrl } from '../../lib/leadLink';
 import Landing from '../../layouts/Landing.astro';
 
 /**
@@ -19,6 +24,11 @@ import Landing from '../../layouts/Landing.astro';
  * Картинка берётся из русского реестра направлений по слагу: адреса совпадают,
  * значит и фон должен совпадать. Человек, переключивший язык, должен узнать
  * страницу, а не решить, что попал в другое место.
+ *
+ * С 03.09.2026 страница дописана до конца: раньше она обрывалась списком цен
+ * без кнопок — прочитать было что, а купить нечего. Теперь после состава идут
+ * отзывы, полный блок подписки с обеими кнопками оплаты, вопросы и последний
+ * экран, ровно как на русской странице направления.
  */
 
 export function getStaticPaths() {
@@ -43,28 +53,47 @@ const meta = {
   ogImage: image,
 };
 
-const botLink = botUrl(site.lead.telegramUrl);
-const tiers = resolveTiers();
+const freeLink = freeStepUrl(direction.slug, 'en');
+
+/* Отзыв по направлению может быть, а может и не быть — и по-английски реже,
+   чем по-русски: непереведённые не показываются. */
+const hasTestimonials = testimonialsFor(direction.slug, 'en').length > 0;
+
+/** Последний экран собирается из обещания направления, а не из общего текста. */
+const finalCta = {
+  title: 'Take the first step today',
+  lead: direction.promise,
+  note: 'The first step is free and asks for nothing — no card, no form.',
+  image,
+  imageBrightness: 0.5,
+};
 ---
 
 <Landing meta={meta} path={`/en/${direction.slug}/`}>
-  <SiteHeader brand={enHome.brand} nav={[]} showCta={false} />
+  <SiteHeader brand={enHome.brand} nav={[]} segment={direction.slug} />
 
-  <main class="dir">
-    <section class="dir__hero" style={`background-image: linear-gradient(to right, rgba(20,18,13,.86), rgba(20,18,13,.55)), url('${image}')`}>
+  <main>
+    <section
+      class="dir__hero"
+      style={`background-image: linear-gradient(to right, rgba(20,18,13,.86), rgba(20,18,13,.55)), url('${image}')`}
+      data-section="hero"
+    >
       <div class="container dir__hero-inner">
-        <p class="dir__eyebrow">{direction.steps.length} steps</p>
+        <p class="dir__eyebrow">{enHome.directions.stepsLabel(direction.steps.length)}</p>
         <h1 class="dir__heading">{direction.title}</h1>
         <p class="dir__promise">{direction.promise}</p>
+        <div class="dir__hero-actions">
+          <Cta kind="primary" href={freeLink} placement="hero">{enHome.start.button}</Cta>
+        </div>
       </div>
     </section>
 
-    <section class="container dir__inner">
+    <section class="container dir__inner" data-section="angle">
       <p class="dir__angle">{direction.angle}</p>
       {direction.body.map((text) => <p class="dir__text">{text}</p>)}
     </section>
 
-    <section class="dir__band">
+    <section class="dir__band" data-section="steps">
       <div class="container dir__inner">
         <h2 class="dir__title">What the steps cover</h2>
         <ol class="dir__steps">
@@ -77,28 +106,21 @@ const tiers = resolveTiers();
       </div>
     </section>
 
-    <section class="container dir__inner">
+    <section class="container dir__inner" data-section="not_for">
       <h2 class="dir__title">Who this is not for</h2>
       <p class="dir__text">{direction.notFor}</p>
-
-      <h2 class="dir__title dir__title--spaced">Access</h2>
-      <p class="dir__text">{enHome.access.lede}</p>
-      <ul class="dir__tiers">
-        {
-          tiers.map((tier) => (
-            <li class="dir__tier">
-              <span class="dir__tier-price">{tier.priceLabel}</span>
-              <span class="dir__tier-name">{tier.label}</span>
-            </li>
-          ))
-        }
-      </ul>
-      <p class="dir__note">{enHome.access.note}</p>
-
-      <p class="dir__text dir__text--lang">{enHome.language.text}</p>
-      <a class="btn btn--primary btn--md" href={botLink}>{enHome.start.button}</a>
     </section>
+
+    {hasTestimonials && <Testimonials tone="alt" segment={direction.slug} />}
+
+    <Subscription tone={hasTestimonials ? 'base' : 'alt'} segment={direction.slug} />
+
+    <Faq faq={enFaq} tone="base" />
+
+    <FinalCta finalCta={finalCta} segment={direction.slug} />
   </main>
+
+  <StickyCta segment={direction.slug} />
 
   <SiteFooter />
 </Landing>
@@ -113,6 +135,10 @@ const tiers = resolveTiers();
   .dir__hero-inner {
     padding: clamp(64px, 11vw, 132px) 0;
     max-width: 760px;
+  }
+
+  .dir__hero-actions {
+    margin-top: 30px;
   }
 
   .dir__eyebrow {
@@ -169,24 +195,12 @@ const tiers = resolveTiers();
     line-height: 1.65;
   }
 
-  .dir__text--lang {
-    margin-top: 32px;
-    padding-top: 24px;
-    border-top: 1px solid var(--border-hairline);
-    font-size: 15px;
-    color: var(--text-muted);
-  }
-
   .dir__title {
     margin: 0 0 18px;
     font-family: var(--font-display);
     font-size: clamp(22px, 3vw, 28px);
     font-weight: 700;
     letter-spacing: -0.015em;
-  }
-
-  .dir__title--spaced {
-    margin-top: 44px;
   }
 
   .dir__steps {
@@ -224,35 +238,5 @@ const tiers = resolveTiers();
     color: var(--text-muted);
     max-width: 60ch;
     font-size: 15px;
-  }
-
-  .dir__tiers {
-    list-style: none;
-    margin: 22px 0 0;
-    padding: 0;
-    display: flex;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-
-  .dir__tier {
-    border: 1px solid var(--border-soft);
-    background: var(--card-secondary);
-    padding: 12px 18px;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .dir__tier-price {
-    font-family: var(--font-display);
-    font-size: 20px;
-    font-weight: 800;
-    font-variant-numeric: tabular-nums;
-  }
-
-  .dir__tier-name {
-    font-size: 13px;
-    color: var(--text-muted);
   }
 </style>

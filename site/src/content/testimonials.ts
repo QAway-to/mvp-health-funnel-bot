@@ -1,4 +1,5 @@
 import { directions } from './directions';
+import { DEFAULT_LANG, type Lang } from '../i18n';
 
 /**
  * Отзывы. Заполняет заказчик — выдумывать их нельзя.
@@ -35,6 +36,24 @@ export interface Testimonial {
    * с отзывом, а не в сноске внизу страницы.
    */
   readonly source?: string;
+  /**
+   * Английская версия того же отзыва.
+   *
+   * Отзыв настоящий, и на английской странице он должен остаться настоящим:
+   * переводится текст, не факты и не сроки. Подпись об источнике переводится
+   * вместе с ним — «из книги Федерации» без перевода читалось бы как имя.
+   *
+   * Нет перевода — отзыв на английской странице не показывается вовсе.
+   * Кириллица в англоязычном блоке отзывов хуже, чем блок без отзыва: она
+   * сообщает, что страница собрана наспех, ровно там, где мы просим доверия.
+   */
+  readonly en?: {
+    readonly name: string;
+    readonly context?: string;
+    readonly before: string;
+    readonly after: string;
+    readonly source?: string;
+  };
 }
 
 export const testimonials: readonly Testimonial[] = [
@@ -55,6 +74,15 @@ export const testimonials: readonly Testimonial[] = [
       'Больше года закаливается осознанно. Болеет раз в полгода и выздоравливает быстрее. Больше всего любит росу и погружение — к погружению готовился не один месяц.',
     segment: 'zakalivanie',
     source: 'из книги Федерации',
+    en: {
+      name: 'Dmitry',
+      context: 'Federation coach',
+      before:
+        'Spent his childhood in and out of hospitals, caught everything going. His parents taught him to fear the cold. He started pouring cold water in 2020, but blindly — and still got ill on and off.',
+      after:
+        'More than a year of doing it deliberately. Falls ill about twice a year and recovers faster. His favourites are dew and full immersion — the immersion took him months to prepare for.',
+      source: 'from the Federation book',
+    },
   },
   {
     name: 'Евгений',
@@ -65,6 +93,15 @@ export const testimonials: readonly Testimonial[] = [
       'За тот месяц заметил, что день проходит легче. Потом разобрался с методиками осознанно и до сих пор моется в прохладной воде.',
     segment: 'all',
     source: 'из книги Федерации',
+    en: {
+      name: 'Yevgeny',
+      context: 'Federation member',
+      before:
+        'In 2019 he lived in a dorm where the water was cold for a whole month. Not by choice.',
+      after:
+        'Over that month he noticed the days came easier. Later he went through the methods deliberately, and he still washes in cool water.',
+      source: 'from the Federation book',
+    },
   },
 ];
 
@@ -87,6 +124,21 @@ if (unknown.length > 0) {
   );
 }
 
-/** Отзывы для страницы: свои плюс сквозные. */
-export const testimonialsFor = (segment: string): readonly Testimonial[] =>
-  testimonials.filter((item) => item.segment === segment || item.segment === 'all');
+/**
+ * Отзывы для страницы: свои плюс сквозные, на языке страницы.
+ *
+ * Английская версия отдаёт только переведённые отзывы: непереведённый просто
+ * не показывается. Секция сама решает, рисоваться ли ей, — значит английская
+ * страница без переводов останется без блока, а не с русским текстом внутри.
+ */
+export const testimonialsFor = (
+  segment: string,
+  lang: Lang = DEFAULT_LANG,
+): readonly Testimonial[] => {
+  const own = testimonials.filter((item) => item.segment === segment || item.segment === 'all');
+  if (lang === DEFAULT_LANG) return own;
+
+  return own
+    .filter((item) => item.en !== undefined)
+    .map((item) => ({ ...item, ...item.en }));
+};

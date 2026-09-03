@@ -1,5 +1,6 @@
 ---
 import Cta from './Cta.astro';
+import { langFromUrl } from '../i18n';
 import { featuredTier } from '../lib/offer';
 import type { FinalCta } from '../content/types';
 
@@ -17,7 +18,7 @@ interface Props {
 
 const { finalCta, segment } = Astro.props;
 
-const featured = featuredTier(segment);
+const featured = featuredTier(segment, langFromUrl(Astro.url));
 ---
 
 <section class="final" data-section="final">

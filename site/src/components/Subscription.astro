@@ -1,9 +1,9 @@
 ---
-import { site } from '../config/site';
-import { liveDirections, soonDirections } from '../content/directions';
-import { subscriptionContent } from '../content/subscription';
+import { subscriptionByLang } from '../content/subscription';
+import { langFromUrl } from '../i18n';
+import { liveDirectionsFor, soonDirectionsFor } from '../i18n/content';
 import { hasAnyCheckout, resolveTiers } from '../lib/offer';
-import { startUrl } from '../lib/leadLink';
+import { freeStepUrl } from '../lib/leadLink';
 import Cta from './Cta.astro';
 
 /**
@@ -16,6 +16,11 @@ import Cta from './Cta.astro';
  * «Первый шаг бесплатно» под тремя разными ценами читаются как ошибка вёрстки.
  * Вместо них — один общий призыв под сеткой. Как только у уровня появится
  * ссылка оплаты, кнопка вернётся на его карточку. См. src/lib/offer.ts.
+ *
+ * Язык компонент берёт из адреса страницы, а не из пропса: блок стоит на
+ * восьми страницах, и восемь мест, где можно забыть его передать, — это
+ * восемь способов показать англоязычному человеку русский поп-ап оплаты.
+ * Ровно это и происходило до 03.09.2026, только целиком.
  */
 
 interface Props {
@@ -26,18 +31,27 @@ interface Props {
 
 const { tone, segment } = Astro.props;
 
-const tiers = resolveTiers(segment);
+const lang = langFromUrl(Astro.url);
+const content = subscriptionByLang[lang];
+const ui = content.ui;
+
+const tiers = resolveTiers(segment, lang);
 const checkoutReady = hasAnyCheckout();
-const terms = site.subscription.terms;
-const soonNames = soonDirections.map((direction) => direction.title.toLowerCase()).join(', ');
-const materialsOnly = liveDirections.filter((direction) => direction.depth === 'materials');
+const live = liveDirectionsFor(lang);
+const soon = soonDirectionsFor(lang);
+const soonNames = soon.map((direction) => direction.title.toLowerCase());
+const materialsOnly = live.filter((direction) => direction.depth === 'materials');
 ---
 
 <section id="price" class={`section section--${tone}`} data-section="price">
   <div class="container stack">
-    <p class="kicker">{subscriptionContent.kicker}</p>
-    <h2 class="h2">{subscriptionContent.title}</h2>
-    <p class="subscription__lead">{subscriptionContent.lead}</p>
+    <p class="kicker">{content.kicker}</p>
+    <h2 class="h2">{content.title}</h2>
+    <p class="subscription__lead">{content.lead}</p>
+
+    {/* Предупреждение о языке материала стоит НАД ценой, а не под ней:
+        человек должен прочитать его до того, как достанет карту. */}
+    {content.warning && <p class="subscription__warning">{content.warning}</p>}
 
     <div class="subscription__grid">
       {
@@ -90,20 +104,20 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
                 <dialog class="pay" data-pay-dialog={tier.id} aria-labelledby={`pay-title-${tier.id}`}>
                   <div class="pay__inner">
                     <p class="pay__kicker">{tier.label}{tier.priceLabel && ` · ${tier.priceLabel}`}</p>
-                    <h3 class="pay__title" id={`pay-title-${tier.id}`}>Как удобнее оплатить?</h3>
-                    <p class="pay__lead">Доступ один и тот же — отличается только способ оплаты.</p>
+                    <h3 class="pay__title" id={`pay-title-${tier.id}`}>{ui.payTitle}</h3>
+                    <p class="pay__lead">{ui.payLead}</p>
 
                     <a class="btn btn--primary btn--md pay__option" href={tier.href} data-cta={`pay_card_${tier.id}`}>
-                      Картой на LavaTop
+                      {ui.payCard}
                     </a>
-                    <p class="pay__note">Обычная оплата картой. Подписка, отменить можно в любой момент.</p>
+                    <p class="pay__note">{ui.payCardNote}</p>
 
                     <a class="btn btn--ghost btn--md pay__option" href={tier.starsHref} data-cta={`pay_stars_${tier.id}`}>
                       {tier.starsLabel}
                     </a>
-                    <p class="pay__note">Оплата внутри чата: карту вводить не нужно, нужны звёзды Telegram.</p>
+                    <p class="pay__note">{ui.payStarsNote}</p>
 
-                    <button type="button" class="pay__close" data-pay-close>Закрыть</button>
+                    <button type="button" class="pay__close" data-pay-close>{ui.payClose}</button>
                   </div>
                 </dialog>
               )}
@@ -115,9 +129,9 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
 
     <div class="subscription__included">
       <div class="subscription__included-head">
-        <p class="subscription__included-title">На любом уровне открыто</p>
+        <p class="subscription__included-title">{ui.includedTitle}</p>
         <ul class="subscription__perks">
-          {subscriptionContent.features.map((feature) => <li class="subscription__perk">{feature}</li>)}
+          {content.features.map((feature) => <li class="subscription__perk">{feature}</li>)}
         </ul>
       </div>
 
@@ -126,12 +140,12 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
           оплаты, а не обнаружить её после. */}
       <ul class="subscription__list">
         {
-          liveDirections.map((direction) => (
+          live.map((direction) => (
             <li class="subscription__item">
               <span class="subscription__item-head">
                 <span class="subscription__item-title">{direction.title}</span>
                 {direction.depth === 'materials' && (
-                  <span class="subscription__item-note">материалы</span>
+                  <span class="subscription__item-note">{ui.materialsLabel}</span>
                 )}
               </span>
               <span class="subscription__item-text">{direction.promise}</span>
@@ -144,8 +158,7 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
     {
       materialsOnly.length > 0 && (
         <p class="subscription__note">
-          Пометка «материалы» — направление открыто целиком, но пошагового курса
-          по нему пока нет: {materialsOnly.map((d) => d.title.toLowerCase()).join(' и ')}.
+          {ui.materialsNote(materialsOnly.map((d) => d.title.toLowerCase()))}
         </p>
       )
     }
@@ -153,19 +166,17 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
     {
       !checkoutReady && (
         <div class="subscription__pending">
-          <Cta kind="primary" href={startUrl(segment)} placement="price_pending" size="md">
-            Забрать первый шаг бесплатно
+          <Cta kind="primary" href={freeStepUrl(segment, lang)} placement="price_pending" size="md">
+            {ui.pendingCta}
           </Cta>
-          <p class="subscription__note">
-            Оплата подключается. Пока доступна бесплатная ступень — о запуске сообщим первым.
-          </p>
+          <p class="subscription__note">{ui.pendingNote}</p>
         </div>
       )
     }
 
     <div class="subscription__terms">
-      {soonNames && <p class="subscription__note">Готовятся: {soonNames}.</p>}
-      {checkoutReady && terms && <p class="subscription__note">{terms}</p>}
+      {soonNames.length > 0 && <p class="subscription__note">{ui.soonNote(soonNames)}</p>}
+      {checkoutReady && content.terms && <p class="subscription__note">{content.terms}</p>}
     </div>
   </div>
 </section>
@@ -292,6 +303,18 @@ const materialsOnly = liveDirections.filter((direction) => direction.depth === '
 
   .pay__close:hover {
     color: var(--text);
+  }
+
+  /* Предупреждение о языке материала: заметное, но не тревожное. Стоит между
+     подводкой и ценой — там, где его физически нельзя проскочить. */
+  .subscription__warning {
+    max-width: 62ch;
+    padding: 14px 18px;
+    border-left: 3px solid var(--accent-text);
+    background: var(--bg-base);
+    font-size: 16px;
+    line-height: 1.55;
+    color: var(--text-card);
   }
 
   .subscription__lead {

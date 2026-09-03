@@ -1,5 +1,7 @@
 ---
 import { testimonialsFor } from '../content/testimonials';
+import { langFromUrl } from '../i18n';
+import { useTranslations } from '../i18n/ui';
 
 /**
  * Отзывы участников в формате «было → стало».
@@ -23,17 +25,20 @@ interface Props {
   title?: string;
 }
 
-const { tone, segment, kicker = 'Как это проходит у других', title = 'Было — стало' } = Astro.props;
+const { tone, segment, kicker, title } = Astro.props;
 
-const items = testimonialsFor(segment);
+const lang = langFromUrl(Astro.url);
+const t = useTranslations(lang);
+
+const items = testimonialsFor(segment, lang);
 ---
 
 {
   items.length > 0 && (
     <section id="testimonials" class={`section section--${tone}`} data-section="testimonials">
       <div class="container stack">
-        <p class="kicker">{kicker}</p>
-        <h2 class="h2">{title}</h2>
+        <p class="kicker">{kicker ?? t('reviews.kicker')}</p>
+        <h2 class="h2">{title ?? t('reviews.title')}</h2>
 
         <div class="reviews">
           {items.map((item) => (
@@ -54,12 +59,12 @@ const items = testimonialsFor(segment);
               </div>
 
               <p class="review__line">
-                <span class="review__label">Было</span>
+                <span class="review__label">{t('reviews.before')}</span>
                 <span class="review__text">{item.before}</span>
               </p>
 
               <p class="review__line">
-                <span class="review__label review__label--after">Стало</span>
+                <span class="review__label review__label--after">{t('reviews.after')}</span>
                 <span class="review__text">{item.after}</span>
               </p>
             </article>

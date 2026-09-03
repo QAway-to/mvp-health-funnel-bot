@@ -27,6 +27,16 @@ export const ui = {
     'pay.close': 'Закрыть',
     'footer.offer': 'Оферта',
     'footer.privacy': 'Политика конфиденциальности',
+    'footer.contact': 'Связаться',
+    'footer.legalAria': 'Правовая информация',
+    'footer.rights': 'Все права защищены',
+    /* На русской странице пометка не нужна: документ и так на русском. */
+    'footer.docsLang': '',
+    'brand': 'Федерация здоровья',
+    'reviews.kicker': 'Как это проходит у других',
+    'reviews.title': 'Было — стало',
+    'reviews.before': 'Было',
+    'reviews.after': 'Стало',
     'lang.switch': 'English',
   },
   en: {
@@ -44,6 +54,17 @@ export const ui = {
     'pay.close': 'Close',
     'footer.offer': 'Terms',
     'footer.privacy': 'Privacy policy',
+    'footer.contact': 'Contact',
+    'footer.legalAria': 'Legal information',
+    'footer.rights': 'All rights reserved',
+    /* Документы русские. Сказать это у ссылки дешевле, чем дать человеку
+       открыть оферту и обнаружить кириллицу. */
+    'footer.docsLang': 'in Russian',
+    'brand': 'Federation of Health',
+    'reviews.kicker': 'How it goes for other people',
+    'reviews.title': 'Before — after',
+    'reviews.before': 'Before',
+    'reviews.after': 'After',
     'lang.switch': 'Русский',
   },
 } as const;

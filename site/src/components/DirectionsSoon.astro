@@ -1,0 +1,112 @@
+---
+import { langFromUrl } from '../i18n';
+import { soonDirectionsFor } from '../i18n/content';
+
+/**
+ * Направления, которые заявлены планом и ещё готовятся.
+ *
+ * Списком, а не карточками: они не входят в подписку, и выглядеть наравне с
+ * открытыми не должны. Ссылка появляется только у тех, где страница уже есть —
+ * такая страница собирает заявки в бота, а не продаёт то, чего нет.
+ *
+ * Секция обязательна для обоих языков. Английская главная о них молчала, и
+ * получалось другое предложение: по-русски «десять направлений, шесть
+ * открыто», по-английски просто «шесть». Человек платит за подписку, в
+ * которую новые темы входят без доплаты, — он должен видеть, какие.
+ */
+
+interface Props {
+  tone: 'base' | 'alt';
+  kicker: string;
+  /** Заголовок собирается снаружи: число и склонение — дело языка. */
+  heading: string;
+  lede: string;
+  /** Хвост подводки, если у части направлений уже есть страница. */
+  pagesNote?: string;
+}
+
+const { tone, kicker, heading, lede, pagesNote } = Astro.props;
+
+const directions = soonDirectionsFor(langFromUrl(Astro.url));
+
+/* Ссылка у готовящегося направления может быть, а может и не быть: обещать
+   страницы в подводке нельзя, пока их нет ни у одного. */
+const someHavePages = directions.some((direction) => Boolean(direction.href));
+---
+
+{
+  directions.length > 0 && (
+    <section class={`section section--${tone}`} data-section="directions_soon">
+      <div class="container stack">
+        <p class="kicker">{kicker}</p>
+        <h2 class="h2">{heading}</h2>
+        <p class="soon__lead">
+          {lede}
+          {someHavePages && pagesNote && ` ${pagesNote}`}
+        </p>
+
+        <ul class="soon">
+          {directions.map((direction) => (
+            <li class="soon__item">
+              {direction.href ? (
+                <a class="soon__title soon__title--link" href={direction.href}>
+                  {direction.title} →
+                </a>
+              ) : (
+                <span class="soon__title">{direction.title}</span>
+              )}
+              <span class="soon__text">{direction.promise}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  )
+}
+
+<style>
+  .soon__lead {
+    font-size: 18px;
+    line-height: 1.6;
+    color: var(--text-lead);
+    max-width: 62ch;
+  }
+
+  .soon {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 20px 32px;
+  }
+
+  .soon__item {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border-soft);
+  }
+
+  .soon__title {
+    font-family: var(--font-display);
+    font-size: 20px;
+    font-weight: 800;
+    color: var(--text-card);
+  }
+
+  .soon__title--link {
+    color: var(--accent-text);
+  }
+
+  .soon__title--link:hover {
+    color: var(--accent-hover);
+  }
+
+  .soon__text {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+</style>

@@ -16,7 +16,7 @@ export const site = {
    * Базовый URL для canonical и OG-тегов. Значение дублирует astro.config.mjs
    * и переопределяется переменной окружения PUBLIC_SITE_URL.
    */
-  url: 'https://mvp-running-landings.onrender.com',
+  url: 'https://mvp-health-funnel-bot.onrender.com',
 
   /** Имя проекта: шапка хаба, футер, юридическая строка. */
   brand: 'Федерация здоровья',
@@ -148,10 +148,13 @@ export const site = {
     gtmId: '',
   },
 
-  /** Футер. */
+  /**
+   * Футер. Здесь только год — подпись «все права защищены» переехала в
+   * `src/i18n/ui.ts` 03.09.2026: она разная на разных языках, а год нет.
+   * Название стороны, принимающей обязательства, живёт в `content/legal.ts`.
+   */
   legal: {
     year: '2026',
-    entity: 'Все права защищены',
   },
 } as const;
 

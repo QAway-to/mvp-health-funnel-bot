@@ -1,6 +1,7 @@
 ---
 import '../styles/global.css';
 import { site } from '../config/site';
+import { alternatesFor, HTML_LANG, langFromUrl, OG_LOCALE } from '../i18n';
 import type { Meta } from '../content/types';
 
 interface Props {
@@ -13,6 +14,28 @@ const { meta, path } = Astro.props;
 
 const canonical = new URL(path, Astro.site);
 const ogImage = new URL(meta.ogImage, Astro.site);
+
+/**
+ * Язык страницы.
+ *
+ * До 03.09.2026 здесь стояло `lang="ru"` литералом, и английские страницы
+ * объявляли себя русскими: скринридер читал английский текст русскими
+ * правилами, поисковик показывал их русскому запросу. Берётся из адреса —
+ * тем же способом, что и во всех остальных компонентах.
+ */
+const lang = langFromUrl(Astro.url);
+
+/**
+ * `hreflang` — как поисковик узнаёт, что это одна страница на двух языках.
+ *
+ * Без них русская и английская версии конкурируют друг с другом в выдаче,
+ * а человек из англоязычной страны попадает на русскую. Отдаём только те
+ * переводы, которые действительно собраны.
+ */
+const alternates = alternatesFor(Astro.url.pathname).map((item) => ({
+  lang: item.lang,
+  href: new URL(item.path, Astro.site).href,
+}));
 
 /**
  * Разметка организации и сайта.
@@ -42,7 +65,7 @@ const gtmId = /^[A-Za-z0-9_-]+$/.test(site.analytics.gtmId) ? site.analytics.gtm
 ---
 
 <!doctype html>
-<html lang="ru">
+<html lang={HTML_LANG[lang]}>
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -51,9 +74,21 @@ const gtmId = /^[A-Za-z0-9_-]+$/.test(site.analytics.gtmId) ? site.analytics.gtm
     <title>{meta.title}</title>
     <meta name="description" content={meta.description} />
     <link rel="canonical" href={canonical.href} />
+    {alternates.map((item) => <link rel="alternate" hreflang={item.lang} href={item.href} />)}
+    {
+      /* x-default — куда вести того, чей язык мы не знаем. Русский:
+         это основная версия сайта и единственная, где есть всё. */
+      alternates.length > 1 && (
+        <link
+          rel="alternate"
+          hreflang="x-default"
+          href={alternates.find((item) => item.lang === 'ru')?.href}
+        />
+      )
+    }
 
     <meta property="og:type" content="website" />
-    <meta property="og:locale" content="ru_RU" />
+    <meta property="og:locale" content={OG_LOCALE[lang]} />
     <meta property="og:title" content={meta.title} />
     <meta property="og:description" content={meta.description} />
     <meta property="og:url" content={canonical.href} />

@@ -1,0 +1,93 @@
+---
+import Cta from './Cta.astro';
+
+/**
+ * Первый экран главной — общий для обоих языков.
+ *
+ * Текст у версий разный: по-русски мы объясняем, из чего собирается здоровье,
+ * по-английски — чем ежедневная доза отличается от интенсивной практики.
+ * А вот вёрстка одна, и держать её в двух файлах значит однажды поправить
+ * заголовок только в одном.
+ */
+
+interface Action {
+  readonly label: string;
+  readonly href: string;
+  /** Место в аналитике. */
+  readonly placement: string;
+}
+
+interface Props {
+  kicker: string;
+  title: string;
+  lead: string;
+  /** Строка под подводкой: как устроена выдача. Не задана — не рисуется. */
+  note?: string;
+  primary: Action;
+  secondary: Action;
+}
+
+const { kicker, title, lead, note, primary, secondary } = Astro.props;
+---
+
+<section class="intro" data-section="hub_intro">
+  <div class="container intro__inner">
+    <p class="kicker">{kicker}</p>
+    <h1 class="intro__title">{title}</h1>
+    <p class="intro__lead">{lead}</p>
+    {note && <p class="intro__note">{note}</p>}
+
+    <div class="intro__actions">
+      <Cta kind="primary" href={primary.href} placement={primary.placement}>{primary.label}</Cta>
+      <Cta kind="secondary" href={secondary.href} placement={secondary.placement}>
+        {secondary.label}
+      </Cta>
+    </div>
+  </div>
+</section>
+
+<style>
+  .intro {
+    padding-block: clamp(56px, 9vw, 112px);
+  }
+
+  .intro__inner {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    align-items: flex-start;
+  }
+
+  .intro__title {
+    font-family: var(--font-display);
+    font-size: clamp(34px, 5.4vw, 64px);
+    font-weight: 800;
+    line-height: 1.02;
+    letter-spacing: -0.03em;
+    max-width: 20ch;
+  }
+
+  .intro__lead {
+    font-size: clamp(18px, 2.2vw, 23px);
+    line-height: 1.5;
+    color: var(--text-lead);
+    max-width: 58ch;
+  }
+
+  /* Подстрочник: как именно приходит материал. Тише подводки — это уточнение,
+     а не второе обещание. */
+  .intro__note {
+    font-size: 16px;
+    line-height: 1.6;
+    color: var(--text-muted);
+    max-width: 58ch;
+    margin-top: -8px;
+  }
+
+  .intro__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    padding-top: 8px;
+  }
+</style>

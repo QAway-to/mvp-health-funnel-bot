@@ -1,0 +1,162 @@
+---
+import { langFromUrl } from '../i18n';
+import { liveDirectionsFor } from '../i18n/content';
+
+/**
+ * Сетка открытых направлений — то, ради чего человек пришёл на главную.
+ *
+ * Вынесена из `pages/index.astro` 03.09.2026, когда у сайта появилась вторая
+ * главная. Копировать сюда сто строк вёрстки и стилей значило бы получить две
+ * сетки, которые расходятся с первой же правкой — и расходятся молча, потому
+ * что английскую страницу никто не открывает каждый день.
+ *
+ * Состав берётся из реестра на языке страницы: карточка, ссылка и картинка
+ * приходят оттуда, а заголовок секции — снаружи. Склонение числительных и
+ * тон заголовка у языков разные, и решать это должен тот, кто пишет текст.
+ */
+
+interface Props {
+  tone: 'base' | 'alt';
+  kicker: string;
+  heading: string;
+  /** Подпись действия на карточке: «Смотреть →», «Read on →». */
+  action: string;
+  /**
+   * Подпись числа шагов. Не задана — число не показывается.
+   *
+   * Русские карточки его не показывают: там человек попадает на полноценный
+   * лендинг направления, где состав расписан. Английская страница короче, и
+   * число шагов на карточке — единственное место, где видно объём.
+   */
+  stepsLabel?: (count: number) => string;
+}
+
+const { tone, kicker, heading, action, stepsLabel } = Astro.props;
+
+const directions = liveDirectionsFor(langFromUrl(Astro.url));
+---
+
+<section id="directions" class={`section section--${tone}`} data-section="directions">
+  <div class="container stack">
+    <p class="kicker">{kicker}</p>
+    <h2 class="h2">{heading}</h2>
+
+    <div class="cards">
+      {
+        directions.map((direction) => (
+          <a class="card" href={direction.href}>
+            {direction.image && (
+              <img
+                class="card__image"
+                src={direction.image}
+                alt=""
+                aria-hidden="true"
+                loading="lazy"
+                decoding="async"
+              />
+            )}
+            <span class="card__scrim" />
+            <span class="card__body">
+              <span class="card__title">{direction.title}</span>
+              {stepsLabel && direction.steps !== undefined && (
+                <span class="card__steps">{stepsLabel(direction.steps)}</span>
+              )}
+              <span class="card__text">{direction.promise}</span>
+              <span class="card__action">{action} →</span>
+            </span>
+          </a>
+        ))
+      }
+    </div>
+  </div>
+</section>
+
+<style>
+  /* Открытые направления — карточки с фотографией.
+     Минимум 280px: при трёх колонках карточка не должна ужиматься до полоски. */
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 24px;
+  }
+
+  .card {
+    position: relative;
+    display: block;
+    min-height: 340px;
+    overflow: hidden;
+    border: 1px solid var(--border-soft);
+    color: var(--text);
+  }
+
+  .card:hover {
+    border-color: var(--accent-text);
+    color: var(--text);
+  }
+
+  .card__image {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    filter: brightness(1.04);
+    transition: transform 300ms ease;
+  }
+
+  .card:hover .card__image {
+    transform: scale(1.03);
+  }
+
+  .card__scrim {
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      180deg,
+      rgba(247, 242, 231, 0) 0%,
+      rgba(247, 242, 231, 0.62) 36%,
+      rgba(247, 242, 231, 0.99) 58%
+    );
+  }
+
+  .card__body {
+    position: absolute;
+    inset: auto 0 0 0;
+    padding: 28px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .card__title {
+    font-family: var(--font-display);
+    font-size: 26px;
+    font-weight: 800;
+    line-height: 1.1;
+    text-wrap: balance;
+  }
+
+  /* Число шагов — служебная строка под названием, не заголовок. */
+  .card__steps {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--accent-text);
+    margin-top: -4px;
+  }
+
+  .card__text {
+    font-size: 16px;
+    line-height: 1.5;
+    color: var(--text-secondary);
+  }
+
+  .card__action {
+    font-family: var(--font-display);
+    font-size: 16px;
+    font-weight: 800;
+    color: var(--accent-text);
+    padding-top: 4px;
+  }
+</style>

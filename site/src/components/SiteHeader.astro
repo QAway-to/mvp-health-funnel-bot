@@ -3,7 +3,7 @@ import Cta from './Cta.astro';
 import { routes } from '../config/site';
 import { directions } from '../content/directions';
 import { enDirections } from '../content/en/directions';
-import { startUrl } from '../lib/leadLink';
+import { freeStepUrl } from '../lib/leadLink';
 import { langFromUrl, switchLang, type Lang } from '../i18n';
 import { useTranslations } from '../i18n/ui';
 import type { NavLink } from '../content/types';
@@ -32,7 +32,7 @@ interface Props {
   segment?: string;
 }
 
-const { brand, brandHref = routes.home, nav, showCta = true, segment } = Astro.props;
+const { brand, brandHref, nav, showCta = true, segment } = Astro.props;
 
 /** Текущий адрес со слэшем на конце — в таком виде лежат все ссылки. */
 const here = Astro.url.pathname.endsWith('/') ? Astro.url.pathname : `${Astro.url.pathname}/`;
@@ -68,13 +68,22 @@ const openDirections =
     : russianDirections;
 
 const homeHref = lang === 'en' ? '/en/' : routes.home;
+
+/**
+ * Логотип ведёт на главную того же языка.
+ *
+ * Раньше он всегда вёл на `/`, и с английской страницы клик по названию
+ * увозил человека на русскую главную — то есть логотип работал как
+ * переключатель языка, только молча.
+ */
+const brandLink = brandHref ?? homeHref;
 const isHome = here === homeHref;
 const insideDirections = openDirections.some((d) => d.href === here);
 ---
 
 <header class="header">
   <div class="header__inner container">
-    <a class="header__brand" href={brandHref}>{brand}</a>
+    <a class="header__brand" href={brandLink}>{brand}</a>
 
     <a class="header__lang" href={otherHref} hreflang={other} lang={other}>
       {t('lang.switch')}
@@ -128,7 +137,7 @@ const insideDirections = openDirections.some((d) => d.href === here);
 
       {
         showCta && (
-          <Cta kind="primary" href={startUrl(segment)} placement="header" size="sm" class="header__cta">
+          <Cta kind="primary" href={freeStepUrl(segment, lang)} placement="header" size="sm" class="header__cta">
             {t('cta.free')}
           </Cta>
         )

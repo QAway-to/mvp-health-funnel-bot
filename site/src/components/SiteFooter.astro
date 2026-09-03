@@ -1,31 +1,45 @@
 ---
 import { site } from '../config/site';
+import { langFromUrl } from '../i18n';
+import { useTranslations } from '../i18n/ui';
 import { isFilled } from '../lib/offer';
 
 /**
  * Юридические ссылки рисуются только заполненные. Пустой `href` ведёт на
  * текущую же страницу: человек кликает «Оферта» и остаётся на месте, решив,
  * что сайт сломан. Лучше не показать ссылку, чем показать неработающую.
+ *
+ * На английской странице подписи английские, а документы за ними остаются
+ * русскими — и это сказано прямо у ссылки. Оферта переводится юристом или не
+ * переводится вовсе; пометка «in Russian» честнее, чем английское слово
+ * «Terms», за которым открывается кириллица.
  */
+const lang = langFromUrl(Astro.url);
+const t = useTranslations(lang);
+const docsLang = t('footer.docsLang');
+
 const legalLinks = [
-  { label: 'Оферта', href: site.links.offer },
-  { label: 'Политика конфиденциальности', href: site.links.privacy },
-  { label: 'Связаться', href: site.links.contact },
+  { label: t('footer.offer'), href: site.links.offer, translated: false },
+  { label: t('footer.privacy'), href: site.links.privacy, translated: false },
+  { label: t('footer.contact'), href: site.links.contact, translated: true },
 ].filter((link) => isFilled(link.href));
 ---
 
 <footer class="footer">
   <div class="footer__inner container">
     <p class="footer__legal">
-      {site.brand} · {site.legal.year} · {site.legal.entity}
+      {t('brand')} · {site.legal.year} · {t('footer.rights')}
     </p>
 
     {
       legalLinks.length > 0 && (
-        <nav class="footer__links" aria-label="Правовая информация">
+        <nav class="footer__links" aria-label={t('footer.legalAria')}>
           {legalLinks.map((link) => (
             <a class="footer__link" href={link.href}>
               {link.label}
+              {docsLang && !link.translated && (
+                <span class="footer__link-lang"> ({docsLang})</span>
+              )}
             </a>
           ))}
         </nav>
@@ -67,5 +81,10 @@ const legalLinks = [
 
   .footer__link:hover {
     color: var(--accent-hover);
+  }
+
+  /* Пометка языка документа: видна, но не спорит с самой ссылкой. */
+  .footer__link-lang {
+    opacity: 0.7;
   }
 </style>

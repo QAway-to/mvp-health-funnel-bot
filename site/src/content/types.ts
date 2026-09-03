@@ -159,6 +159,46 @@ export interface SubscriptionTier {
 }
 
 /**
+ * Подписи внутри блока подписки: поп-ап оплаты, служебные строки, сноски.
+ *
+ * Раньше они стояли прямо в разметке `Subscription.astro`, и это работало
+ * ровно до второго языка: английская страница показывала цены русскими
+ * словами и русский поп-ап оплаты. Теперь текста в компоненте нет вообще —
+ * он весь приходит из контента того языка, на котором открыта страница.
+ */
+export interface SubscriptionUi {
+  /** Заголовок поп-апа выбора способа оплаты. */
+  readonly payTitle: string;
+  readonly payLead: string;
+  readonly payCard: string;
+  readonly payCardNote: string;
+  readonly payStars: string;
+  readonly payStarsNote: string;
+  readonly payClose: string;
+  /** Заголовок блока «что открыто на любом уровне». */
+  readonly includedTitle: string;
+  /** Пометка у направления, раскрытого материалами, а не курсом. */
+  readonly materialsLabel: string;
+  /**
+   * Сноска про эту пометку. Получает названия направлений списком, а не
+   * склеенной строкой: «и» против «and» — решение языка, и принимать его
+   * должен контент, а не разметка.
+   *
+   * Названия берутся в кавычки. «Массаж и самомассаж» — само по себе
+   * перечисление, и без кавычек строка читалась как три направления вместо
+   * двух: «зарядка и массаж и самомассаж».
+   */
+  readonly materialsNote: (names: readonly string[]) => string;
+  /** Строка «готовятся: …». Получает названия направлений списком. */
+  readonly soonNote: (names: readonly string[]) => string;
+  /** Что показываем, пока ни у одного уровня нет ссылки оплаты. */
+  readonly pendingCta: string;
+  readonly pendingNote: string;
+  /** Подпись кнопки уровня, у которого оплаты ещё нет. */
+  readonly freeCta: string;
+}
+
+/**
  * Блок подписки. Продукт на сайте один — доступ ко всем направлениям сразу,
  * а уровни отличаются обратной связью, а не объёмом материалов.
  * Список направлений берётся из реестра, а не переписывается в контенте.
@@ -171,6 +211,18 @@ export interface Subscription {
   readonly features: readonly string[];
   /** По возрастанию цены: читают слева направо. */
   readonly tiers: readonly SubscriptionTier[];
+  /** Период списания рядом с ценой: «в месяц», «per month». */
+  readonly period: string;
+  /** Строка под кнопкой: условия отмены. Пусто — строки нет. */
+  readonly terms: string;
+  /** Вторая дверь к тому же доступу — оплата звёздами. */
+  readonly starsLabel: string;
+  readonly ui: SubscriptionUi;
+  /**
+   * Предупреждение рядом с ценой. Нужно только английской версии: материал
+   * русский, и человек должен прочитать это до оплаты, а не после.
+   */
+  readonly warning?: string;
 }
 
 export interface FaqItem {
