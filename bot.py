@@ -439,7 +439,6 @@ class TelegramBot:
         # Варианты, предложенные кнопками в последнем вопросе, по чатам.
         # В памяти процесса: они живут ровно один ход разговора, и класть их
         # в базу значило бы хранить то, что устареет раньше, чем понадобится.
-        self._choices: dict[str, tuple[str, ...]] = {}
         # Кого мы спросили об отзыве и ждём ответа следующим сообщением.
         self._awaiting_review: set[str] = set()
         # chat_id -> conversation history for free chat
@@ -1221,29 +1220,45 @@ class TelegramBot:
         rows.append([InlineKeyboardButton(_CHOICE_OTHER_LABEL, callback_data=_CHOICE_OTHER)])
         return InlineKeyboardMarkup(rows)
 
-    async def _handle_choice_click(self, update: Update, query, chat_id: str, data: str) -> None:
-        """Нажатый вариант — это ответ человека. Дальше обычный путь.
+    @staticmethod
+    def _clicked_label(query, data: str) -> str:
+        """Подпись нажатой кнопки — из самого сообщения, а не из памяти.
 
-        Список вариантов живёт в памяти процесса: после передеплоя кнопка от
-        старого сообщения ничего не найдёт. Тогда честно просим написать
-        словами — молчащая кнопка выглядит как поломка бота.
+        Варианты раньше лежали в словаре процесса, и это было ошибкой:
+        контейнер на Render засыпает от тишины и перезапускается на каждом
+        выкате, после чего кнопка вчерашнего сообщения не находила ничего.
+        Человек жал вариант и получал «этот вопрос уже позади» — поломку
+        вместо ответа, да ещё и ход разговора при этом не засчитывался.
+        Сообщение свою клавиатуру помнит всегда, сколько бы ни прошло.
         """
-        options = self._choices.get(chat_id, ())
-        index = data[len(_CHOICE_CALLBACK):]
-        if not index.isdigit() or int(index) >= len(options):
+        markup = getattr(query.message, "reply_markup", None)
+        for row in getattr(markup, "inline_keyboard", None) or ():
+            for button in row:
+                if button.callback_data == data:
+                    return button.text or ""
+        return ""
+
+    async def _handle_choice_click(self, update: Update, query, chat_id: str, data: str) -> None:
+        """Нажатый вариант — это ответ человека. Дальше обычный путь."""
+        answer = self._clicked_label(query, data)
+        if not answer:
+            # Кнопки без подписи не бывает, так что сюда не попасть. Но если
+            # попали — вести разговор дальше вслепую нельзя, а обрывать его
+            # тем более: просим сказать словами и ход не тратим.
+            log_agent_action(
+                "Telegram", f"Кнопка варианта без подписи: {data}", level="WARNING"
+            )
             await query.message.reply_text(
-                with_hint("Этот вопрос уже позади. Напиши, что интересует, — отвечу."),
+                with_hint("Не разобрал, что ты выбрал. Напиши словами — отвечу."),
                 parse_mode="HTML",
             )
             return
 
-        answer = options[int(index)]
         await store.event(chat_id, "choice_clicked", answer=answer)
         await self._answer(update, query.message, answer)
 
     async def _handle_choice_other(self, update: Update, query, chat_id: str) -> None:
         """«Интересует другая тема» — назад к списку направлений."""
-        self._choices.pop(chat_id, None)
         state = store.user(chat_id)
         await store.event(chat_id, "choice_other", source=state.source)
 
@@ -1514,10 +1529,8 @@ class TelegramBot:
         # либо продолжается, либо заканчивается.
         reply, options = choices.extract(reply)
         if options:
-            self._choices[chat_id] = options
             keyboard = self._choice_keyboard(options)
         else:
-            self._choices.pop(chat_id, None)
             keyboard = self._topics_keyboard(state.source, exclude=text)
 
         try:
