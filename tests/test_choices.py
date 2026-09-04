@@ -46,23 +46,23 @@ def test_long_label_is_shortened():
     assert options[0].endswith("…")
 
 
-# --- запасной путь: «A или B?» ---------------------------------------------
+# --- вопрос сам по себе кнопок не даёт --------------------------------------
+#
+# Запасной путь «разрежем вопрос по или» отсюда убран: первый кусок разреза
+# нёс постановку вопроса, и в подпись уезжала она. Кнопки, повторяющие вопрос
+# бота, — то, на что и жаловались. Без пометки вариантов нет вовсе, а под
+# ответом остаются обычные кнопки тем, и разговор на этом не кончается.
 
 
-def test_question_with_or_becomes_two_options():
+def test_a_question_with_or_is_not_carved_into_buttons():
     text = "У тебя как с засыпанием — засыпаешь быстро или лежишь без сна?"
-    _, options = choices.extract(text)
-    assert options == ("Засыпаешь быстро", "Лежишь без сна")
+    assert choices.extract(text)[1] == ()
 
 
-def test_only_the_last_question_is_read():
-    """«Или» внутри объяснения вариантами не является."""
-    text = (
-        "Холод работает через сосуды, а не через силу воли или характер. "
-        "Обливался раньше или начинаешь с нуля?"
-    )
-    _, options = choices.extract(text)
-    assert options == ("Обливался раньше", "Начинаешь с нуля")
+def test_the_question_stem_never_becomes_a_label():
+    """Ровно тот случай, из-за которого путь и убран."""
+    text = "Ты встаёшь на рассвете или спишь до последнего?"
+    assert choices.extract(text)[1] == ()
 
 
 def test_statement_without_a_question_gives_nothing():
@@ -85,8 +85,8 @@ def test_empty_and_garbage():
         assert choices.extract(text)[1] == (), text
 
 
-def test_marker_wins_over_the_question():
-    """Пометка модели точнее разбора: она сформулирована, а не выкроена."""
+def test_the_marker_is_the_only_source():
+    """Кнопка — то, что модель сформулировала как ответ, а не кусок вопроса."""
     text = "Спишь нормально или не очень?\n@варианты: сплю нормально | просыпаюсь ночью"
     _, options = choices.extract(text)
     assert options == ("Сплю нормально", "Просыпаюсь ночью")
@@ -103,11 +103,6 @@ def test_tags_are_stripped_from_marked_options():
     text = "Как утро?\n@варианты: <b>Встаю на рассвете</b> | <i>сплю до последнего</i>"
     _, options = choices.extract(text)
     assert options == ("Встаю на рассвете", "Сплю до последнего")
-
-
-def test_tags_are_stripped_from_a_parsed_question():
-    _, options = choices.extract("Ты <b>встаёшь на рассвете</b> или спишь до последнего?")
-    assert all("<" not in option for option in options), options
 
 
 def test_entities_become_characters():
