@@ -16,7 +16,7 @@ from utils import choices
 from utils.content_library import ContentItem, library, parse_caption, tags_for_text
 from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
-from utils.funnel_stages import load_stages, offer_due, stage_for
+from utils.funnel_stages import load_stages, offer_turn, should_show_cta, stage_for
 from utils.funnel_store import UserState, journal_premium, now_iso, store
 from utils.offer import CtaButton, load_offer, read_prompt, split_buttons
 from utils.photos import PhotoCache, photo_path
@@ -367,6 +367,14 @@ _PHOTOS = PhotoCache()
 #: уточняющие вопросы бесконечно: плохого сообщения нет ни одного,
 #: плохая только сумма.
 _FUNNEL_STAGES = load_stages()
+
+#: Ход, на котором появляется карточка выбора уровня. Берётся из самих
+#: указаний, а не из отдельного числа: иначе промпт обещает оффер на одном
+#: ходу, а кнопка приходит на другом. Указаний нет — падаем на env.
+#:
+#: Не меньше единицы: ноль здесь означал бы оффер под первым же ответом, до
+#: единого вопроса о человеке, — а взяться он может и из пустого env.
+_OFFER_TURN: int = max(offer_turn(_FUNNEL_STAGES) or _FUNNEL_CTA_AT, 1)
 
 #: Тексты просьбы об отзыве и допродажи.
 _REVIEW_TEXTS = load_texts()
@@ -1473,21 +1481,18 @@ class TelegramBot:
         if len(conv) > _MAX_HISTORY + 1:
             self._conversations[chat_id] = [conv[0]] + conv[-_MAX_HISTORY:]
 
-        # Порог сдвигается с каждым показом, поэтому второй оффер приходит не
-        # сразу за первым, а через разговор. Отдельное поле для этого не нужно:
+        # Ритм оффера — в utils/funnel_stages: то же условие лежало здесь
+        # выражением, а тест держал его копию, и копия осталась правильной,
+        # когда сломался оригинал. Отдельное поле для счёта не нужно:
         # cta_shown и так хранится.
-        # Ход оффера задан в самих указаниях (prompts/funnel_stages.txt), а не
-        # числом здесь: два места с «на четвёртом» разъедутся, и промпт будет
-        # обещать предложение на одном ходу, а кнопка появится на другом.
-        #
-        # Повторный показ — по старому правилу: через разговор, не подряд.
-        first_time = offer_due(_FUNNEL_STAGES, message_number=state.messages)
-        repeat = state.cta_shown and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
-        show_cta = (
-            _OFFER.is_ready
-            and not is_premium
-            and state.cta_shown < _CTA_MAX_TIMES
-            and (first_time or repeat)
+        show_cta: bool = should_show_cta(
+            messages=state.messages,
+            cta_shown=state.cta_shown,
+            turn=_OFFER_TURN,
+            gap=_CTA_GAP,
+            max_times=_CTA_MAX_TIMES,
+            is_premium=is_premium,
+            offer_ready=_OFFER.is_ready,
         )
 
         try:
@@ -2234,7 +2239,7 @@ class TelegramBot:
             f"{mark(bool(config.CONTENT_CHANNEL_ID))} канал с роликами",
             f"{mark(len(library) > 0)} роликов в индексе: {len(library)}",
             offer_line,
-            f"{mark(True)} оффер после сообщений: {_FUNNEL_CTA_AT}",
+            f"{mark(True)} оффер после сообщений: {_OFFER_TURN}",
             f"{'💳' if config.PAYMENTS_ENABLED else '➖'} касса в боте: "
             + ("включена" if config.PAYMENTS_ENABLED else "выключена"),
         ]
