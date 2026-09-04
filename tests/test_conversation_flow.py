@@ -23,16 +23,13 @@ import bot as bot_module  # noqa: E402
 
 
 class FakeMessage:
-    def __init__(self, reply_markup=None) -> None:
+    def __init__(self) -> None:
         self.replies: list[dict] = []
         self.photos: list[str] = []
         self.deleted = False
-        # Своя клавиатура — как у настоящего сообщения Telegram: именно из неё
-        # достаётся подпись нажатой кнопки, и живёт она не в памяти процесса.
-        self.reply_markup = reply_markup
 
     async def reply_text(self, text, **kwargs):
-        message = FakeMessage(reply_markup=kwargs.get("reply_markup"))
+        message = FakeMessage()
         self.replies.append({"text": text, **kwargs})
         return message
 
@@ -55,8 +52,8 @@ class FakeUpdate:
 
 
 class FakeQuery:
-    def __init__(self, reply_markup=None) -> None:
-        self.message = FakeMessage(reply_markup=reply_markup)
+    def __init__(self) -> None:
+        self.message = FakeMessage()
         self.answered = False
 
     async def answer(self, *args, **kwargs):
@@ -377,61 +374,22 @@ async def test_clicking_an_option_answers_as_if_typed(quiet_store, asking_model,
     update = FakeUpdate(chat_id=3105)
     await bot._answer(update, update.message, "плохо сплю")
 
-    sent = update.message.replies[-1]["reply_markup"]
-    query = FakeQuery(reply_markup=sent)
+    query = FakeQuery()
     await bot._handle_choice_click(update, query, "3105", f"{bot_module._CHOICE_CALLBACK}1")
 
     assert query.message.replies, "нажатие кнопки осталось без ответа"
 
 
 @pytest.mark.asyncio
-async def test_a_button_from_before_a_restart_still_answers(
-    quiet_store, asking_model, no_video, monkeypatch
-):
-    """Кнопка вчерашнего сообщения обязана работать и после перезапуска.
-
-    Так и ломалось: варианты лежали в памяти процесса, а контейнер на Render
-    засыпает от тишины и перезапускается на каждом выкате. Человек жал
-    вариант и получал «этот вопрос уже позади» — и ход разговора при этом не
-    засчитывался, то есть воронка вставала на месте.
-    """
-    before = bot_module.TelegramBot()
-    update = FakeUpdate(chat_id=3106)
-    await before._answer(update, update.message, "плохо сплю")
-    sent = update.message.replies[-1]["reply_markup"]
-
-    after = bot_module.TelegramBot()          # новый процесс: памяти о вариантах нет
-    query = FakeQuery(reply_markup=sent)
-
-    # Ход разговора виден только в том, что уходит в хранилище: quiet_store
-    # писать никуда не даёт, поэтому перехватываем записи здесь.
-    saved: list = []
-
-    async def record(state):
-        saved.append(state)
-
-    monkeypatch.setattr(bot_module.store, "save", record)
-
-    await after._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
-
-    texts = [reply["text"] for reply in query.message.replies]
-    assert texts, "кнопка от старого сообщения промолчала"
-    assert not any("уже позади" in text for text in texts), "тупик вместо ответа"
-    assert saved and saved[0].messages > 0, "ход не засчитан — воронка стоит на месте"
-
-
-@pytest.mark.asyncio
-async def test_the_clicked_label_comes_from_the_message(quiet_store, asking_model, no_video):
-    """Ответ человека — ровно та подпись, которую он видел на кнопке."""
+async def test_a_stale_button_says_so_instead_of_going_quiet(quiet_store, asking_model, no_video):
+    """После передеплоя список вариантов пуст. Молчащая кнопка — вид поломки."""
     bot = bot_module.TelegramBot()
-    update = FakeUpdate(chat_id=3107)
-    await bot._answer(update, update.message, "плохо сплю")
+    update = FakeUpdate(chat_id=3106)
+    query = FakeQuery()
 
-    sent = update.message.replies[-1]["reply_markup"]
-    label = sent.inline_keyboard[0][0].text
-    query = FakeQuery(reply_markup=sent)
+    await bot._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
 
-    assert bot._clicked_label(query, f"{bot_module._CHOICE_CALLBACK}0") == label
+    assert query.message.replies, "кнопка от старого сообщения промолчала"
 
 
 # --- воронка оплаты: сначала выбор, потом почта -----------------------------

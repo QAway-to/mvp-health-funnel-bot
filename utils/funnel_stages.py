@@ -69,62 +69,12 @@ def stage_for(stages: dict[str, str], *, message_number: int, is_premium: bool) 
     return stages.get(str(message_number)) or stages.get(BEYOND, "")
 
 
-#: По этим словам в указаниях узнаётся ход оффера.
-_OFFER_MARK = "предлагаешь доступ"
-
-
-def offer_turn(stages: dict[str, str]) -> int:
-    """На каком ходу показывается карточка выбора уровня. 0 — такого хода нет.
+def offer_due(stages: dict[str, str], *, message_number: int) -> bool:
+    """Тот ли это ход, на котором показывается карточка выбора уровня.
 
     Определяется по тексту указаний, а не отдельным числом в коде: два места,
     где записано «на четвёртом», разъедутся, и оффер будет обещан в промпте
     на одном ходу, а кнопка появится на другом.
     """
-    turns = [
-        int(key)
-        for key, text in stages.items()
-        if key.isdigit() and _OFFER_MARK in text.lower()
-    ]
-    return min(turns) if turns else 0
-
-
-def offer_due(stages: dict[str, str], *, message_number: int) -> bool:
-    """Ровно ли этот ход назначен оффером — проверка самого файла указаний.
-
-    Только для тестов и проверок: показ кнопки на равенство завязывать
-    нельзя. Ход можно проскочить — ответ на нём мог упасть с ошибкой, а
-    человек мог начать разговор ещё до того, как указания появились, — и
-    тогда оффер не наступил бы уже никогда. Решает `should_show_cta`.
-    """
-    return offer_turn(stages) == message_number
-
-
-def should_show_cta(
-    *,
-    messages: int,
-    cta_shown: int,
-    turn: int,
-    gap: int,
-    max_times: int,
-    is_premium: bool,
-    offer_ready: bool,
-) -> bool:
-    """Показывать ли карточку выбора уровня под этим ответом бота.
-
-    Отдельной функцией, а не выражением по месту: раньше условие жило в
-    bot.py, а тест держал его копию. Копия и осталась правильной, когда
-    оригинал сломался, — проверялось не то, что выполняется.
-
-    `messages` — какой это по счёту ответ бота, `cta_shown` — сколько раз
-    оффер уже показан. Первый показ идёт по порогу, а не по равенству ходу:
-    ход можно проскочить (ответ на нём упал с ошибкой — он всё равно
-    засчитан; человек был премиумом; разговор начат до появления указаний), и
-    на равенстве оффер не пришёл бы уже никогда — вторая ветка требует, чтобы
-    первый показ состоялся. Повторный — через разговор, а не следующим
-    сообщением: подряд это давление, а не напоминание.
-    """
-    if not offer_ready or is_premium or cta_shown >= max_times:
-        return False
-    if not cta_shown:
-        return messages >= turn
-    return messages >= turn + cta_shown * gap
+    stage = stages.get(str(message_number), "")
+    return "предлагаешь доступ" in stage.lower()
