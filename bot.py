@@ -368,6 +368,13 @@ _PHOTOS = PhotoCache()
 #: плохая только сумма.
 _FUNNEL_STAGES = load_stages()
 
+#: На каком ходу показывается оффер — берётся из тех же указаний, а не вторым
+#: числом в коде. Указаний нет — падаем на FUNNEL_CTA_AT.
+_OFFER_TURN = next(
+    (n for n in range(1, 21) if offer_due(_FUNNEL_STAGES, message_number=n)),
+    _FUNNEL_CTA_AT,
+)
+
 #: Тексты просьбы об отзыве и допродажи.
 _REVIEW_TEXTS = load_texts()
 
@@ -1481,7 +1488,12 @@ class TelegramBot:
         # обещать предложение на одном ходу, а кнопка появится на другом.
         #
         # Повторный показ — по старому правилу: через разговор, не подряд.
-        first_time = offer_due(_FUNNEL_STAGES, message_number=state.messages)
+        # Не равенство, а порог: ход оффера можно проскочить — ответ на нём мог
+        # упасть с ошибкой (ход уже засчитан), а у всех, кто начал разговор
+        # раньше этих указаний, счётчик и так стоит дальше. На равенстве они
+        # не увидели бы оффер никогда: строка ниже требует, чтобы первый показ
+        # уже состоялся.
+        first_time = not state.cta_shown and state.messages >= _OFFER_TURN
         repeat = state.cta_shown and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
         show_cta = (
             _OFFER.is_ready
