@@ -23,13 +23,16 @@ import bot as bot_module  # noqa: E402
 
 
 class FakeMessage:
-    def __init__(self) -> None:
+    def __init__(self, reply_markup=None) -> None:
         self.replies: list[dict] = []
         self.photos: list[str] = []
         self.deleted = False
+        # Своя клавиатура — как у настоящего сообщения Telegram: из неё и
+        # достаётся подпись нажатой кнопки, а не из памяти процесса.
+        self.reply_markup = reply_markup
 
     async def reply_text(self, text, **kwargs):
-        message = FakeMessage()
+        message = FakeMessage(reply_markup=kwargs.get("reply_markup"))
         self.replies.append({"text": text, **kwargs})
         return message
 
@@ -52,8 +55,8 @@ class FakeUpdate:
 
 
 class FakeQuery:
-    def __init__(self) -> None:
-        self.message = FakeMessage()
+    def __init__(self, reply_markup=None) -> None:
+        self.message = FakeMessage(reply_markup=reply_markup)
         self.answered = False
 
     async def answer(self, *args, **kwargs):
@@ -374,22 +377,61 @@ async def test_clicking_an_option_answers_as_if_typed(quiet_store, asking_model,
     update = FakeUpdate(chat_id=3105)
     await bot._answer(update, update.message, "плохо сплю")
 
-    query = FakeQuery()
+    sent = update.message.replies[-1]["reply_markup"]
+    query = FakeQuery(reply_markup=sent)
     await bot._handle_choice_click(update, query, "3105", f"{bot_module._CHOICE_CALLBACK}1")
 
     assert query.message.replies, "нажатие кнопки осталось без ответа"
 
 
 @pytest.mark.asyncio
-async def test_a_stale_button_says_so_instead_of_going_quiet(quiet_store, asking_model, no_video):
-    """После передеплоя список вариантов пуст. Молчащая кнопка — вид поломки."""
-    bot = bot_module.TelegramBot()
+async def test_a_button_from_before_a_restart_moves_on(
+    quiet_store, asking_model, no_video, monkeypatch
+):
+    """Кнопка вчерашнего сообщения обязана вести разговор дальше.
+
+    Так и ломалось: варианты лежали в памяти процесса, а контейнер на Render
+    засыпает от тишины и перезапускается на каждом выкате. Человек жал
+    вариант и получал «этот вопрос уже позади» — тупик, и ход при этом не
+    засчитывался, то есть воронка стояла на месте.
+    """
+    before = bot_module.TelegramBot()
     update = FakeUpdate(chat_id=3106)
-    query = FakeQuery()
+    await before._answer(update, update.message, "плохо сплю")
+    sent = update.message.replies[-1]["reply_markup"]
 
-    await bot._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
+    after = bot_module.TelegramBot()      # новый процесс: памяти о вариантах нет
+    query = FakeQuery(reply_markup=sent)
 
-    assert query.message.replies, "кнопка от старого сообщения промолчала"
+    # Ход виден только в том, что уходит в хранилище: quiet_store писать не
+    # даёт, поэтому перехватываем записи здесь.
+    saved: list = []
+
+    async def record(state):
+        saved.append(state)
+
+    monkeypatch.setattr(bot_module.store, "save", record)
+
+    await after._handle_choice_click(update, query, "3106", f"{bot_module._CHOICE_CALLBACK}0")
+
+    texts = [reply["text"] for reply in query.message.replies]
+    assert texts, "кнопка от старого сообщения промолчала"
+    assert not any("уже позади" in text for text in texts), "тупик вместо ответа"
+    assert saved and saved[0].messages > 0, "ход не засчитан — воронка стоит"
+
+
+@pytest.mark.asyncio
+async def test_the_clicked_label_is_what_the_person_saw(quiet_store, asking_model, no_video):
+    bot = bot_module.TelegramBot()
+    update = FakeUpdate(chat_id=3107)
+    await bot._answer(update, update.message, "плохо сплю")
+
+    sent = update.message.replies[-1]["reply_markup"]
+    query = FakeQuery(reply_markup=sent)
+
+    assert bot._clicked_label(query, f"{bot_module._CHOICE_CALLBACK}0") == (
+        sent.inline_keyboard[0][0].text
+    )
 
 
 # --- воронка оплаты: сначала выбор, потом почта -----------------------------
