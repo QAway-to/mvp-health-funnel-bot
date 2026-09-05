@@ -375,6 +375,26 @@ _OFFER_TURN = next(
     _FUNNEL_CTA_AT,
 )
 
+
+def should_show_cta_now(state: UserState) -> bool:
+    """Придёт ли оффер под ответом, который бот пишет прямо сейчас.
+
+    `state.messages` — номер этого ответа, считая с первого.
+
+    Одна функция на два места: сам показ в диалоге и строка в /status. Копией
+    условия это уже было — копия жила в тесте и осталась верной, когда
+    оригинал сломался, поэтому тесты и молчали.
+
+    Первый показ по порогу, а не по равенству ходу: ход можно проскочить, и на
+    равенстве оффер не пришёл бы уже никогда — ветка повтора требует, чтобы
+    первый показ состоялся.
+    """
+    if not _OFFER.is_ready or state.is_premium or state.cta_shown >= _CTA_MAX_TIMES:
+        return False
+    if not state.cta_shown:
+        return state.messages >= _OFFER_TURN
+    return state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
+
 #: Тексты просьбы об отзыве и допродажи.
 _REVIEW_TEXTS = load_texts()
 
@@ -1490,27 +1510,9 @@ class TelegramBot:
         if len(conv) > _MAX_HISTORY + 1:
             self._conversations[chat_id] = [conv[0]] + conv[-_MAX_HISTORY:]
 
-        # Порог сдвигается с каждым показом, поэтому второй оффер приходит не
-        # сразу за первым, а через разговор. Отдельное поле для этого не нужно:
-        # cta_shown и так хранится.
-        # Ход оффера задан в самих указаниях (prompts/funnel_stages.txt), а не
-        # числом здесь: два места с «на четвёртом» разъедутся, и промпт будет
-        # обещать предложение на одном ходу, а кнопка появится на другом.
-        #
-        # Повторный показ — по старому правилу: через разговор, не подряд.
-        # Не равенство, а порог: ход оффера можно проскочить — ответ на нём мог
-        # упасть с ошибкой (ход уже засчитан), а у всех, кто начал разговор
-        # раньше этих указаний, счётчик и так стоит дальше. На равенстве они
-        # не увидели бы оффер никогда: строка ниже требует, чтобы первый показ
-        # уже состоялся.
-        first_time = not state.cta_shown and state.messages >= _OFFER_TURN
-        repeat = state.cta_shown and state.messages >= _FUNNEL_CTA_AT + state.cta_shown * _CTA_GAP
-        show_cta = (
-            _OFFER.is_ready
-            and not is_premium
-            and state.cta_shown < _CTA_MAX_TIMES
-            and (first_time or repeat)
-        )
+        # Условие показа — одной функцией наверху модуля: те же числа выводит
+        # /status, и разойтись им теперь негде.
+        show_cta = should_show_cta_now(state)
 
         try:
             if thinking_msg:
@@ -2290,9 +2292,27 @@ class TelegramBot:
             f"{mark(bool(config.CONTENT_CHANNEL_ID))} канал с роликами",
             f"{mark(len(library) > 0)} роликов в индексе: {len(library)}",
             offer_line,
-            f"{mark(True)} оффер после сообщений: {_FUNNEL_CTA_AT}",
+            f"{mark(True)} оффер на ответе №{_OFFER_TURN} и дальше",
             f"{'💳' if config.PAYMENTS_ENABLED else '➖'} касса в боте: "
             + ("включена" if config.PAYMENTS_ENABLED else "выключена"),
+        ]
+
+        # Своя строка воронки. Без неё «почему мне не пришёл оффер» не
+        # отвечается вообще ничем: показ зависит от трёх чисел, которые лежат
+        # в базе и наружу ниоткуда не видны. Дважды подряд ответом было
+        # «должно прийти» — а не приходило, и причина была здесь.
+        state = store.user(str(update.effective_chat.id))
+        # Следующий ответ бота будет на единицу дальше по счётчику — /status
+        # сам его не увеличивает.
+        due = should_show_cta_now(replace(state, messages=state.messages + 1))
+        lines += [
+            "",
+            "<b>Твоя строка воронки</b>",
+            f"ответов бота: {state.messages}",
+            f"оффер показан раз: {state.cta_shown} из {_CTA_MAX_TIMES}",
+            f"доступ оплачен: {'да' if state.is_premium else 'нет'}",
+            f"направление: {state.source or '—'}",
+            f"{mark(due)} оффер под следующим ответом: " + ("да" if due else "нет"),
         ]
         await update.message.reply_text("\n".join(lines), parse_mode="HTML")
 

@@ -13,28 +13,58 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from dataclasses import replace  # noqa: E402
+
 import bot as bot_module  # noqa: E402
 
 
 def shows_at(messages: int, cta_shown: int, *, is_premium: bool = False,
              offer_ready: bool = True) -> bool:
-    """Повторяет условие показа из _answer, чтобы поведение читалось числами."""
-    return (
-        offer_ready
-        and not is_premium
-        and cta_shown < bot_module._CTA_MAX_TIMES
-        and messages >= bot_module._FUNNEL_CTA_AT + cta_shown * bot_module._CTA_GAP
+    """То же решение, что принимает бот, — с теми же числами.
+
+    Именно вызов, а не повторённое здесь условие: копия у теста уже была, и
+    она осталась верной, когда сломался оригинал. Тесты ритма при этом
+    проходили, а оффер на проде не приходил вообще никому.
+    """
+    state = bot_module.UserState(
+        chat_id="1",
+        bucket="A",
+        is_premium=is_premium,
+        messages=messages,
+        cta_shown=cta_shown,
     )
+    original = bot_module._OFFER
+    bot_module._OFFER = replace(
+        original, blockers=() if offer_ready else ("карточка не заполнена",)
+    )
+    try:
+        return bot_module.should_show_cta_now(state)
+    finally:
+        bot_module._OFFER = original
 
 
 def test_silent_until_the_person_got_something():
-    """До порога оффера нет: сначала польза, потом разговор о деньгах."""
-    for message in range(1, bot_module._FUNNEL_CTA_AT):
+    """До хода оффера его нет: сначала польза, потом разговор о деньгах."""
+    for message in range(1, bot_module._OFFER_TURN):
         assert not shows_at(message, 0), f"оффер на {message}-м сообщении"
 
 
-def test_first_offer_lands_on_the_threshold():
-    assert shows_at(bot_module._FUNNEL_CTA_AT, 0)
+def test_first_offer_lands_on_the_turn_the_instructions_name():
+    assert bot_module._OFFER_TURN == 4, "в prompts/funnel_stages.txt оффер на 4-м"
+    assert shows_at(bot_module._OFFER_TURN, 0)
+
+
+def test_a_skipped_turn_does_not_lose_the_offer_forever():
+    """Ровно то, что ломалось на проде.
+
+    Показ был завязан на равенство номеру хода. Ход можно проскочить: ответ
+    на нём мог упасть с ошибкой — он всё равно засчитан; человек мог быть в
+    тот момент премиумом; а у всех, кто начал разговор до появления указаний,
+    счётчик стоял далеко за ходом. Никто из них не увидел бы оффер уже
+    никогда: вторая ветка требует, чтобы первый показ состоялся.
+    """
+    for message in range(bot_module._OFFER_TURN, bot_module._OFFER_TURN + 30):
+        assert shows_at(message, 0), f"оффера нет и на {message}-м сообщении"
 
 
 def test_second_offer_waits_out_a_conversation():
