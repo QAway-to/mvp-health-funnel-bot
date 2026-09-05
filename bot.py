@@ -1266,6 +1266,16 @@ class TelegramBot:
             return
 
         key, topic = parsed
+
+        # Направление запоминаем: кнопки под следующим ответом строятся по
+        # нему. Без этого человек, спросивший про бег, получал под ответом
+        # закаливание и самомассаж — общий список направлений, потому что
+        # source оставался пустым у всех, кто пришёл без метки с лендинга.
+        # Уйти в другое направление есть чем: кнопка «Интересует другая тема».
+        state = store.user(chat_id)
+        if state.source != key:
+            await store.save(replace(state, source=key))
+
         await store.event(chat_id, "topic_clicked", source=key)
         log_agent_action("Telegram", f"Тема с кнопки: «{topic}» (чат {chat_id})")
         await self._answer(update, query.message, topic)
@@ -1520,6 +1530,18 @@ class TelegramBot:
         # ответ словами — работа, нажать — нет, и на этой разнице разговор
         # либо продолжается, либо заканчивается.
         reply, options = choices.extract(reply)
+
+        # Пустой текст Telegram не примет: «Message text is empty», и человек
+        # не получает вообще ничего. Так и случалось, когда модель отвечала
+        # одной служебной строкой с вариантами — после её удаления не
+        # оставалось ни слова.
+        if not reply.strip():
+            log_agent_action(
+                "Telegram", f"Модель вернула пустой ответ (chat {chat_id})", level="ERROR"
+            )
+            reply = "Не уловил вопрос. Спроси иначе — отвечу."
+            options = ()
+
         if options:
             self._choices[chat_id] = options
             keyboard = self._choice_keyboard(options)
@@ -1560,7 +1582,7 @@ class TelegramBot:
         отдаёт чек-лист. Второй выход нужен не меньше первого — человеку, для
         которого сейчас рано, иначе остаётся только промолчать.
         """
-        keyboard = self._keyboard(_OFFER.cta_buttons)
+        keyboard = self._cta_keyboard()
         # Отзыв идёт впереди оффера, а не после: чужой опыт отвечает на «а у
         # меня получится» до того, как этот вопрос станет возражением. Нет
         # подходящего под направление — идём без него, выдумывать нельзя.
@@ -1690,6 +1712,28 @@ class TelegramBot:
         if not plans:
             return None
         return self._keyboard(tuple(CtaButton(plan.action, plan.label) for plan in plans))
+
+    def _cta_keyboard(self) -> "InlineKeyboardMarkup | None":
+        """Кнопки под оффером: ступени тарифа плюс всё, что описано в промпте.
+
+        Подпись ступени берётся из _PLANS, а не из offer_cta.txt: цена в чате
+        должна приходить из одного места, иначе в одном разговоре появятся две
+        витрины с разными суммами.
+
+        Ступень, за которую сейчас нельзя заплатить, выпадает. Её callback не
+        найдётся среди _PLANS, и нажатие не сделает вообще ничего — молчащая
+        кнопка читается как поломка бота.
+        """
+        sellable = {plan.action: plan.label for plan in self._sellable_plans()}
+        buttons: list[CtaButton] = []
+        for button in _OFFER.cta_buttons:
+            if button.action in _PLAN_STARS:
+                label = sellable.get(button.action)
+                if label:
+                    buttons.append(CtaButton(button.action, label))
+            else:
+                buttons.append(button)
+        return self._keyboard(tuple(buttons))
 
     async def _handle_offer_click(self, query, chat_id: str) -> None:
         """Клик по «что входит» — состав и ступени, а не сразу счёт.

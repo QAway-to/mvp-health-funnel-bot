@@ -237,3 +237,59 @@ async def test_plan_without_any_payment_path_says_so_plainly(monkeypatch, quiet_
 
     assert query.message.invoices == []
     assert "напиши" in query.message.replies[0]["text"].lower()
+
+
+# --- кнопки под самим оффером ------------------------------------------------
+#
+# Раньше под оффером было две кнопки: «что входит» и чек-лист, а ступени
+# приходили следующим экраном. До оплаты выходило три клика, и первый вопрос
+# был «а где вообще кнопка подписки». Теперь ступени стоят сразу под оффером.
+
+
+def _cta(*actions: str) -> Offer:
+    """Оффер, у которого в промпте перечислены вот эти кнопки."""
+    return Offer(
+        product_card=PRODUCT_CARD,
+        sales_block="блок",
+        cta_text="cta",
+        purchase_url="https://pay.example/checkout",
+        blockers=(),
+        cta_buttons=tuple(
+            bot_module.CtaButton(action, f"подпись из промпта: {action}")
+            for action in actions
+        ),
+    )
+
+
+def test_the_offer_carries_the_tiers_itself(monkeypatch, plans):
+    monkeypatch.setattr(
+        bot_module, "_OFFER", _cta("buy_base", "buy_premium", "buy_pro", "offer", "gift")
+    )
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+
+    keyboard = bot_module.TelegramBot()._cta_keyboard()
+
+    actions = [row[0].callback_data for row in keyboard.inline_keyboard]
+    assert actions == ["buy_base", "buy_premium", "buy_pro", "offer", "gift"]
+
+
+def test_a_tier_label_comes_from_the_plans_not_the_prompt(monkeypatch, plans):
+    """Две витрины с разными ценами в одном чате — худшее, что тут возможно."""
+    monkeypatch.setattr(bot_module, "_OFFER", _cta("buy_premium"))
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+
+    keyboard = bot_module.TelegramBot()._cta_keyboard()
+
+    assert keyboard.inline_keyboard[0][0].text == "💳 Премиум — $20"
+
+
+def test_a_tier_nobody_can_pay_for_is_not_shown(monkeypatch, plans):
+    """Её callback не найдётся среди _PLANS, и нажатие не сделает ничего."""
+    monkeypatch.setattr(bot_module, "_OFFER", _cta("buy_base", "buy_premium", "gift"))
+    monkeypatch.setattr(bot_module.config, "PAYMENTS_ENABLED", True)
+    monkeypatch.setattr(bot_module, "_PLANS", (plans[1],))
+
+    keyboard = bot_module.TelegramBot()._cta_keyboard()
+
+    actions = [row[0].callback_data for row in keyboard.inline_keyboard]
+    assert actions == ["buy_premium", "gift"], "кнопка ступени ведёт в никуда"
