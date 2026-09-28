@@ -1,5 +1,6 @@
 import asyncio
 import hashlib
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from dataclasses import dataclass, replace
@@ -7,7 +8,7 @@ from typing import Any
 
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, LabeledPrice
 from telegram.ext import Application, CommandHandler, MessageHandler, CallbackQueryHandler, PreCheckoutQueryHandler, filters
-from telegram.error import Forbidden, TelegramError
+from telegram.error import BadRequest, Forbidden, TelegramError
 
 from config import config
 from utils.logger import log_agent_action
@@ -383,6 +384,23 @@ _OFFER_TURN = next(
     (n for n in range(1, 21) if offer_due(_FUNNEL_STAGES, message_number=n)),
     _FUNNEL_CTA_AT,
 )
+
+
+#: «Сообщение не найдено» — и именно сообщение, а не чат. Telegram отвечает
+#: «Message to forward not found» на удалённый пост и «Chat not found» на
+#: неверный CONTENT_CHANNEL_ID: один класс ошибки, одни слова «not found», а
+#: последствия противоположные — во втором случае «пропали» разом все посты.
+_MISSING_MESSAGE_RE = re.compile(r"\bmessage\b.*\bnot found\b", re.IGNORECASE)
+
+
+def _is_missing_message(error: TelegramError) -> bool:
+    """Правда ли Telegram сказал, что этого СООБЩЕНИЯ нет.
+
+    Только `BadRequest`: сетевые ошибки и таймауты оборачивают произвольный
+    текст нижнего уровня, где «not found» встречается по совсем другим
+    поводам — вплоть до неразрешённого имени хоста.
+    """
+    return isinstance(error, BadRequest) and bool(_MISSING_MESSAGE_RE.search(str(error)))
 
 
 def should_show_cta_now(state: UserState) -> bool:
@@ -2443,6 +2461,7 @@ class TelegramBot:
         не запасной путь, а единственный.
         """
         found: list[ContentItem] = []
+        vanished: list[int] = []
         for message_id in range(start_id, end_id + 1):
             try:
                 forwarded = await self._app.bot.forward_message(
@@ -2450,7 +2469,18 @@ class TelegramBot:
                     from_chat_id=config.CONTENT_CHANNEL_ID,
                     message_id=message_id,
                 )
-            except TelegramError:
+            except TelegramError as e:
+                # Пост удалён — запись о нём надо убрать, иначе бот будет
+                # отдавать людям то, чего в канале уже нет.
+                #
+                # Но «не найдено» само по себе ничего не доказывает. Неверный
+                # CONTENT_CHANNEL_ID даёт «chat not found» — теми же словами и
+                # тем же классом ошибки, — и на КАЖДОМ посте диапазона. Проверка
+                # по подстроке «not found» стёрла бы в этом случае всю
+                # библиотеку разом. Поэтому требуем и класс ошибки, и явное
+                # упоминание сообщения, а не чата.
+                if message_id in library and _is_missing_message(e):
+                    vanished.append(message_id)
                 continue  # дырка в нумерации или пост удалён
             if forwarded.video or forwarded.video_note or forwarded.animation:
                 found.append(parse_caption(forwarded.caption, message_id))
@@ -2461,6 +2491,27 @@ class TelegramBot:
             except TelegramError:
                 pass
             await asyncio.sleep(_REINDEX_PAUSE)
+
+        removed: list[int] = []
+        for message_id in vanished:
+            # Сбой хранилища на одной записи не должен стоить всего прохода:
+            # без этого исключение отсюда уносило бы и upsert_many ниже, то
+            # есть весь только что собранный урожай.
+            try:
+                await library.remove(message_id)
+                removed.append(message_id)
+            except Exception as e:
+                log_agent_action(
+                    "Content",
+                    f"Не убрать #{message_id} из индекса: {type(e).__name__} — "
+                    "останется до следующей переиндексации",
+                    level="WARNING",
+                )
+        if removed:
+            log_agent_action(
+                "Content",
+                f"Убрано из индекса (постов больше нет): {', '.join(map(str, removed))}",
+            )
 
         return await library.upsert_many(found)
 

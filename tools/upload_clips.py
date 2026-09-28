@@ -28,6 +28,17 @@
 Ролик уйдёт без звука. Дорожка вырезается копированием картинки, без
 перекодирования: качество не меняется, занимает секунду.
 
+СТУПЕНЬ ПОШТУЧНО. Там же, через запятую, можно указать `free` или `premium` —
+это перебьёт общий `--tier` для одной строки:
+
+    IMG_2783.MOV | #зарядка | Вступление          | free
+    IMG_2785.MOV | #зарядка | Подъём и воздух     | premium
+    IMG_2786.MOV | #зарядка | Разминка и растяжка | mute, premium
+
+Нужно это ровно там, где курс заливается одной пачкой: вступление свободное,
+шаги платные. Без пометки пачку пришлось бы делить на две папки руками — а
+делят их руками, и ровно там платный ролик уезжает в свободные.
+
 ПОДПИСЬ РЕШАЕТ ВСЁ. Бот подбирает ролик только по ней:
 
     #тег #ещёодин
@@ -66,6 +77,7 @@ import subprocess
 import sys
 import tempfile
 import time
+from collections import Counter
 from contextlib import contextmanager
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -79,6 +91,10 @@ REPO = Path(__file__).resolve().parents[1]
 CAPTIONS_FILE = "captions.txt"
 SENT_FILE = ".uploaded.json"
 TIERS = ("free", "premium")
+#: Пометки, допустимые четвёртой частью строки captions.txt. Собирается из
+#: TIERS, чтобы третья ступень, если она появится, не потребовала правки в
+#: двух местах — разойдутся они молча.
+KNOWN_FLAGS = {"mute", *TIERS}
 #: Пауза между отправками: на двух десятках файлов подряд Telegram отвечает
 #: flood limit, и половина заливки молча теряется.
 PAUSE_SECONDS = 2
@@ -92,9 +108,16 @@ class Clip:
     #: Заливать без звука. Не редкость: на части роликов музыка из TikTok или
     #: посторонний шум, и в чате он мешает, а не помогает.
     mute: bool = False
+    #: Ступень этого ролика. Пусто — берётся общая, из --tier.
+    #:
+    #: Появилось, когда понадобилось залить курс и тиктоки одной пачкой:
+    #: вступления свободные, шаги платные. Без этого пачку приходится делить
+    #: на две папки и гонять скрипт дважды — а делят её руками, и ровно там
+    #: платный ролик уезжает в свободные.
+    tier: str = ""
 
-    def caption(self, tier: str) -> str:
-        return f"{self.tags}\ntier: {tier}\n{self.title}"
+    def caption(self, default_tier: str) -> str:
+        return f"{self.tags}\ntier: {self.tier or default_tier}\n{self.title}"
 
 
 @contextmanager
@@ -159,12 +182,22 @@ def read_clips(folder: Path) -> list[Clip]:
             continue
         parts = [p.strip() for p in line.split("|")]
         if len(parts) not in (3, 4):
-            problems.append(f"строка {number}: нужно три части через | (или четыре с mute)")
+            problems.append(f"строка {number}: нужно три части через | (или четыре с пометками)")
             continue
         name, tags, title = parts[:3]
-        flag = parts[3].lower() if len(parts) == 4 else ""
-        if flag not in ("", "mute"):
-            problems.append(f"строка {number}: четвёртой частью бывает только mute, а не {flag!r}")
+        # Пометки четвёртой частью, через запятую: mute, free, premium.
+        # Порядок не важен, регистр тоже.
+        flags = {f.strip().lower() for f in parts[3].split(",")} if len(parts) == 4 else set()
+        flags.discard("")
+        unknown = flags - KNOWN_FLAGS
+        if unknown:
+            problems.append(
+                f"строка {number}: непонятные пометки {sorted(unknown)} — бывают mute, {', '.join(TIERS)}"
+            )
+            continue
+        tiers = flags & set(TIERS)
+        if len(tiers) > 1:
+            problems.append(f"строка {number}: две ступени сразу — {sorted(tiers)}")
             continue
         if not tags.startswith("#"):
             problems.append(f"строка {number}: теги должны начинаться с #")
@@ -173,7 +206,10 @@ def read_clips(folder: Path) -> list[Clip]:
         if not path.is_file():
             problems.append(f"строка {number}: нет файла {name}")
             continue
-        clips.append(Clip(path=path, tags=tags, title=title, mute=flag == "mute"))
+        clips.append(Clip(
+            path=path, tags=tags, title=title,
+            mute="mute" in flags, tier=next(iter(tiers), ""),
+        ))
 
     if problems:
         sys.exit("\n".join(["Ролики не залиты — сначала поправьте:", *problems]))
@@ -211,14 +247,29 @@ def main() -> None:
     if args.mute_all:
         clips = [replace(clip, mute=True) for clip in clips]
     sent_log = folder / SENT_FILE
-    sent: dict[str, int] = json.loads(sent_log.read_text()) if sent_log.is_file() else {}
+    # encoding обязателен. Пишется файл в utf-8, а read_text без аргумента
+    # берёт кодировку системы — на Windows это не utf-8, и книжка с именем
+    # вроде «закалка.mp4» не читается обратно. Ломалось это ровно там, где
+    # книжка и нужна: на повторном запуске после обрыва, посреди залитой
+    # наполовину пачки.
+    sent: dict[str, int] = (
+        json.loads(sent_log.read_text(encoding="utf-8")) if sent_log.is_file() else {}
+    )
 
     if args.dry_run:
         for clip in clips:
             mark = "уже залит" if clip.path.name in sent else f"{clip.path.stat().st_size / 2**20:.1f} МБ"
-            print(f"{clip.path.name}  [{mark}{', без звука' if clip.mute else ''}]")
+            # Ступень печатаем всегда: пробный прогон затем и нужен, чтобы
+            # увидеть платное платным до того, как оно уедет свободным.
+            marks = f"{mark}, {clip.tier or args.tier}" + (", без звука" if clip.mute else "")
+            print(f"{clip.path.name}  [{marks}]")
             print("  " + clip.caption(args.tier).replace("\n", "\n  "))
-        print(f"\nвсего: {len(clips)}, tier: {args.tier}")
+        # Раньше здесь печаталась одна общая ступень. С поштучными пометками
+        # она стала враньём: под единственным платным роликом стояло
+        # «tier: free». Считаем по тому, что реально уедет в подписи.
+        counts = Counter(clip.tier or args.tier for clip in clips)
+        breakdown = ", ".join(f"{tier} {counts[tier]}" for tier in TIERS if counts[tier])
+        print(f"\nвсего: {len(clips)} — {breakdown}")
         return
 
     token, channel = read_env()
