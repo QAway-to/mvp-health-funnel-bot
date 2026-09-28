@@ -72,6 +72,9 @@ from pathlib import Path
 
 import requests
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+from tools.video_meta import ffmpeg_exe, probe  # noqa: E402
+
 REPO = Path(__file__).resolve().parents[1]
 CAPTIONS_FILE = "captions.txt"
 SENT_FILE = ".uploaded.json"
@@ -100,17 +103,17 @@ def without_sound(path: Path):
 
     `-c:v copy` — картинка переписывается байт в байт, без перекодирования:
     ролик не теряет качества и не ждёт минуту на кодеке.
-    """
-    try:
-        import imageio_ffmpeg
-    except ImportError:
-        sys.exit("Для вырезания звука нужен ffmpeg:\n    pip install imageio-ffmpeg")
 
+    `+faststart` обязателен. По умолчанию ffmpeg дописывает служебный блок
+    `moov` в конец файла, и до самого конца скачивания никто не знает ни
+    размеров кадра, ни длительности. Telegram столько не читает — и кладёт
+    ролик в канал как `320x320` без превью.
+    """
     with tempfile.TemporaryDirectory() as folder:
         target = Path(folder) / f"{path.stem}-mute.mp4"
         result = subprocess.run(
-            [imageio_ffmpeg.get_ffmpeg_exe(), "-y", "-i", str(path),
-             "-c:v", "copy", "-an", str(target)],
+            [ffmpeg_exe(), "-y", "-i", str(path),
+             "-c:v", "copy", "-an", "-movflags", "+faststart", str(target)],
             capture_output=True,
         )
         if result.returncode != 0 or not target.is_file():
@@ -230,17 +233,31 @@ def main() -> None:
             continue
 
         with without_sound(clip.path) if clip.mute else _as_is(clip.path) as source:
+            # Размеры и длительность передаём сами. Оставить это Telegram
+            # нельзя: файлы больше примерно 10 МБ он не разбирает и записывает
+            # ролик как 320x320 — вертикальное видео после этого показывается
+            # растянутым, и у готового поста это уже не исправить ничем, кроме
+            # перезаливки.
+            meta = probe(source, ffmpeg_exe())
+            fields: dict[str, object] = {
+                "chat_id": channel,
+                "caption": clip.caption(args.tier),
+                "supports_streaming": True,
+            }
+            if meta.is_usable:
+                fields |= {
+                    "width": meta.width,
+                    "height": meta.height,
+                    "duration": meta.duration,
+                }
+            else:
+                print(f"[{index}/{len(clips)}] {name} — размеры не прочитались, "
+                      "заливаю без них", flush=True)
             with source.open("rb") as handle:
-                response = requests.post(
-                    url,
-                    data={
-                        "chat_id": channel,
-                        "caption": clip.caption(args.tier),
-                        "supports_streaming": True,
-                    },
-                    files={"video": (name, handle, "video/mp4")},
-                    timeout=600,
-                )
+                files: dict[str, tuple] = {"video": (name, handle, "video/mp4")}
+                if meta.thumbnail:
+                    files["thumbnail"] = ("thumb.jpg", meta.thumbnail, "image/jpeg")
+                response = requests.post(url, data=fields, files=files, timeout=600)
         payload = response.json()
         if not payload.get("ok"):
             print(f"[{index}/{len(clips)}] {name} — ОШИБКА: {payload}", flush=True)

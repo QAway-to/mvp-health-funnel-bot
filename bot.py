@@ -13,7 +13,13 @@ from config import config
 from utils.logger import log_agent_action
 from utils.llm import chat_completion
 from utils import choices
-from utils.content_library import ContentItem, library, parse_caption, tags_for_text
+from utils.content_library import (
+    TIER_PREMIUM,
+    ContentItem,
+    library,
+    parse_caption,
+    tags_for_text,
+)
 from utils.deeplink import parse_start_payload
 from utils.followups import is_quiet_hour, load_followups, next_step
 from utils.funnel_stages import load_stages, offer_due, stage_for
@@ -287,6 +293,9 @@ _FUNNEL_CTA_AT = config.FUNNEL_CTA_AT      # после скольких соо�
 # Дважды — это напоминание, на третий раз это давление.
 _CTA_MAX_TIMES = 2
 _CTA_GAP = 6
+# Сколько раз за разговор говорим, что ролик по теме есть, но он в подписке.
+# Мерка та же, что у оффера: дважды — напоминание, дальше — давление.
+_TEASE_MAX_TIMES = 2
 _STARS_PRICE = config.STARS_PRICE          # цена в звёздах, задаётся через env
 _REINDEX_MAX_SPAN = 200                    # сколько message_id за один /reindex
 _REINDEX_PAUSE = 0.3                       # пауза между пробами, чтобы не словить flood limit
@@ -458,6 +467,12 @@ class TelegramBot:
         # Варианты, предложенные кнопками в последнем вопросе, по чатам.
         # Кого мы спросили об отзыве и ждём ответа следующим сообщением.
         self._awaiting_review: set[str] = set()
+        # Сколько раз в чате уже прозвучало «этот разбор в подписке».
+        # Намеренно в памяти процесса: ради счётчика на два значения
+        # заводить поле в хранилище незачем, а перезапуск стоит одного
+        # лишнего показа. Размер ограничен тем же, чем и _conversations:
+        # запись уходит, когда вытесняется сам разговор.
+        self._teased: dict[str, int] = {}
         # chat_id -> conversation history for free chat
         self._conversations: dict[str, list[dict[str, str]]] = {}
 
@@ -1434,6 +1449,20 @@ class TelegramBot:
         )
         return True
 
+    def _evict_old_chats(self) -> None:
+        """Выбросить самые давние разговоры и всё, что к ним привязано.
+
+        Привязано пока одно — счётчик намёков на платный ролик. Он и считается
+        «за разговор», так что переживать сам разговор ему незачем, а оставь
+        его — получится словарь, который растёт на каждого когда-либо
+        написавшего и не уменьшается никогда. Ровно эту болезнь уже лечили у
+        `_chat_locks`, и заводить её заново на соседней строке глупо.
+        """
+        while len(self._conversations) > _MAX_CONVERSATIONS:
+            evicted = next(iter(self._conversations))
+            self._conversations.pop(evicted)
+            self._teased.pop(evicted, None)
+
     async def _answer(self, update: Update, message, text: str) -> None:
         """Ответ модели на вопрос — набранный руками или выбранный кнопкой.
 
@@ -1456,8 +1485,7 @@ class TelegramBot:
         else:
             # LRU: перекладываем в конец, чтобы вытеснялись самые давние чаты
             self._conversations[chat_id] = self._conversations.pop(chat_id)
-        while len(self._conversations) > _MAX_CONVERSATIONS:
-            self._conversations.pop(next(iter(self._conversations)))
+        self._evict_old_chats()
 
         conv = self._conversations[chat_id]
 
@@ -2065,6 +2093,7 @@ class TelegramBot:
                 f"Ролик не подобран (в запросе: {wanted}; в библиотеке: {len(library)}) "
                 f"— вопрос: «{text[:60]}»",
             )
+            await self._tease_locked_video(update, state, query)
             return
 
         try:
@@ -2085,6 +2114,50 @@ class TelegramBot:
         await store.event(
             state.chat_id, "video_sent", message_id=item.message_id, title=item.title
         )
+
+    async def _tease_locked_video(self, update: Update, state: UserState, query: str) -> None:
+        """Сказать, что разбор по теме есть, но он в подписке.
+
+        Раньше здесь была тишина: `match` отбрасывает платный ролик молча, и
+        человек, спросивший ровно про то, что у нас снято, не получал даже
+        намёка на его существование. Тишина в этом месте — не деликатность, а
+        потерянная продажа: единственное доказательство, что за подпиской
+        что-то стоит, мы прятали как раз от того, кто в нём заинтересован.
+
+        Показываем не чаще двух раз за разговор — по той же мерке, что и сам
+        оффер: на третий раз это уже не напоминание, а давление. Счётчик живёт
+        в памяти процесса, а не в UserState: лишнее поле в хранилище того не
+        стоит, а после перезапуска цена ошибки — один лишний показ.
+        """
+        if state.is_premium or not _OFFER.is_ready:
+            return
+        if self._teased.get(state.chat_id, 0) >= _TEASE_MAX_TIMES:
+            return
+        # Ищем среди платного то, что нашлось бы подписчику. Не нашлось —
+        # ролика по теме нет вообще, и говорить не о чем.
+        locked = library.match(query, is_premium=True, exclude=state.seen_content)
+        if not locked or locked.tier != TIER_PREMIUM:
+            return
+
+        text = _REVIEW_TEXTS.get("video_locked", "")
+        if not text:
+            return
+
+        keyboard = self._plans_keyboard()
+        try:
+            await update.effective_message.reply_text(
+                with_hint(text), parse_mode="HTML", reply_markup=keyboard
+            )
+        except TelegramError as e:
+            log_agent_action("Telegram", f"Не отправить намёк на платный ролик: {e}", level="WARNING")
+            return
+
+        self._teased[state.chat_id] = self._teased.get(state.chat_id, 0) + 1
+        log_agent_action(
+            "Content",
+            f"Ролик #{locked.message_id} закрыт подпиской — показан намёк в чат {state.chat_id}",
+        )
+        await store.event(state.chat_id, "video_locked_shown", message_id=locked.message_id)
 
     async def _handle_channel_post(self, update: Update, context) -> None:
         """Индексировать новый пост в канале-библиотеке."""

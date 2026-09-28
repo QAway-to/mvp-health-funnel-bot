@@ -27,6 +27,7 @@ from telegram.error import TelegramError  # noqa: E402
 from config import config  # noqa: E402
 from utils.content_library import _TAG_SYNONYMS, TIER_FREE  # noqa: E402
 from utils.llm import chat_completion  # noqa: E402
+from tools.video_meta import ffmpeg_exe, probe  # noqa: E402
 
 VIDEO_SUFFIXES = {".mp4", ".mov", ".m4v", ".webm"}
 TELEGRAM_MAX_BYTES = 50 * 1024 * 1024
@@ -119,10 +120,25 @@ async def main() -> int:
         if args.dry_run:
             continue
 
+        # Размеры и длительность Telegram сам определяет только на мелких
+        # файлах; на остальных пост уходит в канал как 320x320 без превью, и
+        # вертикальный ролик потом показывается растянутым. Чинится это только
+        # перезаливкой, поэтому считаем их здесь.
+        meta = probe(path, ffmpeg_exe())
+        if not meta.is_usable:
+            print("   размеры не прочитались, заливаю без них")
+
         try:
             with path.open("rb") as fh:
                 await bot.send_video(
-                    chat_id=config.CONTENT_CHANNEL_ID, video=fh, caption=caption
+                    chat_id=config.CONTENT_CHANNEL_ID,
+                    video=fh,
+                    caption=caption,
+                    width=meta.width or None,
+                    height=meta.height or None,
+                    duration=meta.duration or None,
+                    thumbnail=meta.thumbnail or None,
+                    supports_streaming=True,
                 )
             uploaded += 1
         except TelegramError as e:
