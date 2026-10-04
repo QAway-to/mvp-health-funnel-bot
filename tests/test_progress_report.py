@@ -104,3 +104,61 @@ def test_the_file_is_written_and_has_every_sheet(tmp_path: Path) -> None:
     assert book.sheetnames == ["Сводка", "Прогресс", "Вопросы аудитории", "Материалы", "Воронки"]
     # Шапка плюс строка на пункт — лист не должен терять пункты по дороге.
     assert book["Прогресс"].max_row == len(report.ITEMS) + 1
+
+
+class TestQuestions:
+    """Разбор вопросов — это обещание продукта, и считать его надо из строк.
+
+    Клиент читает «не отвечает на N» и понимает это как N дырок, которые надо
+    закрыть. Поэтому граница — тема, на которую мы отвечать не будем, — обязана
+    быть отделена от дырки: иначе отчёт требует работы, которой нет.
+    """
+
+    def test_every_question_is_numbered_once_and_in_order(self) -> None:
+        numbers = [row[0] for row in report.QUESTIONS]
+        assert numbers == [str(n) for n in range(1, len(report.QUESTIONS) + 1)]
+
+    def test_counts_come_from_the_rows(self) -> None:
+        counts = report.question_totals()
+        assert sum(counts.values()) == len(report.QUESTIONS)
+        assert counts[report.NO] == sum(1 for r in report.QUESTIONS if r[3] == report.NO)
+
+    @pytest.mark.parametrize("row", report.QUESTIONS, ids=[r[0] for r in report.QUESTIONS])
+    def test_every_verdict_is_known_and_explained(self, row: tuple[str, ...]) -> None:
+        number, text, was, now, basis = row
+        assert text and basis, f"вопрос {number} без текста или без основания"
+        assert was in {report.YES, report.MAYBE, report.NO}, "в v3 границы не было"
+        assert now in {report.YES, report.MAYBE, report.EDGE, report.NO}
+
+    @pytest.mark.parametrize(
+        "row",
+        [r for r in report.QUESTIONS if r[3] == report.NO],
+        ids=[r[0] for r in report.QUESTIONS if r[3] == report.NO],
+    )
+    def test_a_hole_says_it_is_a_hole(self, row: tuple[str, ...]) -> None:
+        """Дырка называется дыркой в самой клетке.
+
+        Иначе её не отличить от границы при чтении: оба выглядят как «нет».
+        """
+        assert "ДЫРКА" in row[4]
+
+    @pytest.mark.parametrize(
+        "row",
+        [r for r in report.QUESTIONS if r[2] != r[3]],
+        ids=[r[0] for r in report.QUESTIONS if r[2] != r[3]],
+    )
+    def test_a_changed_verdict_says_why(self, row: tuple[str, ...]) -> None:
+        """Изменённый ответ без объяснения — это цифра, которой нельзя верить."""
+        assert len(row[4]) > 30, f"вопрос {row[0]}: ответ изменился, а основание короткое"
+
+    def test_the_sheet_holds_every_question(self, tmp_path: Path) -> None:
+        openpyxl = pytest.importorskip("openpyxl", reason="сборка отчёта требует openpyxl")
+        out = tmp_path / "отчёт.xlsx"
+
+        report.build(out)
+
+        sheet = openpyxl.load_workbook(out)["Вопросы аудитории"]
+        numbers = {
+            str(cell.value) for row in sheet.iter_rows(min_col=1, max_col=1) for cell in row
+        }
+        assert {row[0] for row in report.QUESTIONS} <= numbers
